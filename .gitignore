@@ -119,4 +119,4 @@ dmypy.json
 # miscellaneous
 *.dat
 
-*.idea/
+.idea
