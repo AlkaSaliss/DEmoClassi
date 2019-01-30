@@ -13,8 +13,8 @@ def load_process_save_images(path_to_csv, class_, flag_, root_path, path_detecto
     print(res)
 
 
-ROOT_PATH = "C:\\Users\\A739748\\Documents\\COMPUTER_VISION\\fer2013\\processed_images"
-PATH_TO_CSV = "C:\\Users\\A739748\\Documents\\COMPUTER_VISION\\fer2013\\fer2013.csv"
+ROOT_PATH = "..\\..\\fer2013\\processed_images"
+PATH_TO_CSV = "..\\..\\fer2013\\fer2013.csv"
 CLASS_ = list(range(7))
 FLAGS = ['PublicTest', 'PrivateTest', "Training"]  # Training, PublicTest, PrivateTest
 

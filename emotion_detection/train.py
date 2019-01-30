@@ -11,7 +11,7 @@ FEATURE_EXTRACT = True
 NUM_CLASSES = 7
 USE_PRETRAINED = True
 EPOCHS = 10
-CHECKPOINT = "C:\\Users\\A739748\\Documents\\COMPUTER_VISION\\EmotionDetection\\checkpoints"
+CHECKPOINT = "..\\checkpoints"
 LOG_INTERVAL = 2
 FILE_NAME = 'resnet'
 

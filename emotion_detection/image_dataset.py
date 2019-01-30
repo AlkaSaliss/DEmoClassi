@@ -6,7 +6,7 @@ import os
 
 # Define the transforms for the training and validation sets
 BATCH_SIZE = 128
-DATA_DIR = "C:\\Users\\A739748\\Documents\\COMPUTER_VISION\\fer2013\\processed_images"
+DATA_DIR = "..\\..\\fer2013\\processed_images"
 
 
 def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR, preprocess=False):

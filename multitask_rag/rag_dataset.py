@@ -91,7 +91,7 @@ def split_utk(src_dir, dest_dir, train_split=0.7):
 
 # Define the transforms for the training and validation sets
 BATCH_SIZE = 64
-DATA_DIR = "C:\\Users\\A739748\\Documents\\COMPUTER_VISION\\UTKface_Aligned_cropped\\utk_data"
+DATA_DIR = "..\\..\\UTKface_Aligned_cropped\\utk_data"
 
 
 def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR, **split_args):

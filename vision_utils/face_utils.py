@@ -16,7 +16,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-PATH_DETECTOR = "C:\\Users\\A739748\\Documents\\COMPUTER_VISION\\EmotionDetection\\shape_predictor_68_face_landmarks.dat"
+PATH_DETECTOR = "..\\shape_predictor_68_face_landmarks.dat"
 
 
 # function to process one image
