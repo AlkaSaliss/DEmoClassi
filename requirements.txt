@@ -3,3 +3,4 @@ torchvision
 pytorch-ignite
 imutils
 dlib
+kaggle

@@ -72,6 +72,8 @@ def initialize_model(model_name, feature_extract, num_classes=7, task='fer2013',
         num_ftrs = model_ft.classifier[6].in_features
         if task == 'fer2013':
             model_ft.classifier[6] = nn.Linear(num_ftrs, num_classes)
+        else:
+            model_ft.classifier[6] = nn.Linear(num_ftrs, 128)
         input_size = 224
 
     elif model_name == "vgg":
@@ -101,7 +103,10 @@ def initialize_model(model_name, feature_extract, num_classes=7, task='fer2013',
         model_ft = models.densenet121(pretrained=use_pretrained)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier.in_features
-        model_ft.classifier = nn.Linear(num_ftrs, num_classes)
+        if task == 'fer2013':
+            model_ft.classifier = nn.Linear(num_ftrs, num_classes)
+        else:
+            model_ft.classifier = nn.Linear(num_ftrs, 128)
         input_size = 224
 
     elif model_name == "inception":
@@ -147,10 +152,11 @@ def run(model, epochs, optimizer, log_interval, dataloaders,
                                             n_saved=n_saved, create_dir=True,
                                             require_empty=False
                                             )
-    eralystop = handlers.EarlyStopping(50, get_val_loss, trainer)
+    earlystop = handlers.EarlyStopping(50, get_val_loss, trainer)
 
     evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
                               {'optimizer': optimizer, 'model': model})
+    evaluator.add_event_handler(Events.COMPLETED, earlystop)
     # trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
     #                           {'optimizer': optimizer, 'model': model})
 
