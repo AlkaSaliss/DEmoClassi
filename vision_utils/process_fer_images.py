@@ -37,7 +37,7 @@ def main(args=None):
         for flag in args.flags:
             for cl in args.classes:
                 print("####******* Processing class {} from {} Dataset *******####".format(cl, flag))
-                load_process_save_images(args.path_to_csv, cl, flag, args.root_path, args.path_detector)
+                load_process_save_images(args.path_to_csv, cl, flag, args.root_path, args.path_to_detector)
                 print('\n\n')
     else:
         for flag in args['flags']:
