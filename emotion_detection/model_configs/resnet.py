@@ -21,8 +21,7 @@ my_model, input_size = initialize_model(model_name=MODEL_NAME, feature_extract=F
 # Define the optimizer
 optimizer = optim.Adam(
     [
-        {"params": my_model.input_layer.parameters(), "lr": 1e-3},
-        {"params": my_model.model.fc.parameters(), "lr": 1e-3},
+        {"params": my_model.fc.parameters(), "lr": 1e-3},
         {"params": my_model.model.conv1.parameters()},
         {"params": my_model.model.layer1.parameters()},
         {"params": my_model.model.layer2.parameters()},
