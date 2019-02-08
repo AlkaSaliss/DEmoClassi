@@ -7,6 +7,7 @@ from ignite.engine import Events, create_supervised_trainer, create_supervised_e
 from ignite.metrics import Accuracy, Loss
 from ignite import handlers
 from tqdm import tqdm
+import os
 
 
 class ConvModel(nn.Module):
@@ -130,8 +131,17 @@ def initialize_model(model_name, feature_extract, num_classes=7, task='fer2013',
     return model_ft, input_size
 
 
-def run(model, epochs, optimizer, log_interval, dataloaders,
+def run(path_to_model_script, epochs, log_interval, dataloaders,
         dirname='resnet_models', filename_prefix='resnet', n_saved=2):
+
+    # Get the model, optimizer and dataloaders from script
+    model_script = dict()
+    with open(path_to_model_script) as f:
+        exec(f.read(), model_script)
+
+    model = model_script['my_model']
+    optimizer = model_script['optimizer']
+
     train_loader, val_loader = dataloaders['Training'], dataloaders['PublicTest']
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
