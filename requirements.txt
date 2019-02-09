@@ -4,3 +4,4 @@ pytorch-ignite
 imutils
 dlib
 kaggle
+tensorboardX

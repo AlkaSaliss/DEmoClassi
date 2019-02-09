@@ -7,38 +7,8 @@ from ignite.engine import Events, create_supervised_trainer, create_supervised_e
 from ignite.metrics import Accuracy, Loss
 from ignite import handlers
 from tqdm import tqdm
+from tensorboardX import SummaryWriter
 import os
-
-
-class ConvModel(nn.Module):
-    """custom Pytorch neural network module"""
-
-    def __init__(self, model_name='resnet', feature_extract=True, num_classes=7, use_pretrained=True):
-        super(ConvModel, self).__init__()
-        self.model, input_size = initialize_model(model_name, feature_extract, num_classes, 'fer2013', use_pretrained)
-        self.input_layer = nn.Conv2d(3, 3, 3, 1, padding=1)
-
-    def forward(self, x):
-        x = F.relu(self.input_layer(x))
-        x = self.model(x)
-        return x
-
-
-class ConvModelMultiTask(nn.Module):
-    """custom Pytorch neural network module for multitask learning"""
-
-    def __init__(self, model_name='resnet', feature_extract=True, num_classes=7, use_pretrained=True):
-        super(ConvModelMultiTask, self).__init__()
-        self.conv_base, input_size = initialize_model(model_name, feature_extract, num_classes, 'utk', use_pretrained)
-        self.output_age = nn.Linear(128, 1)
-        self.output_gender = nn.Linear(128, 1)
-        self.output_race = nn.Linear(128, 4)
-
-    def forward(self, age, gender, race):
-        age = self.output_age(self.conv_base(age))
-        gender = self.output_gender(self.conv_base(gender))
-        race = self.output_race(self.conv_base(race))
-        return age, gender, race
 
 
 def set_parameter_requires_grad(model, feature_extracting):
@@ -131,8 +101,30 @@ def initialize_model(model_name, feature_extract, num_classes=7, task='fer2013',
     return model_ft, input_size
 
 
+def create_summary_writer(model, data_loader, log_dir):
+    writer = SummaryWriter(log_dir=os.path.join(log_dir, 'train'))
+    val_writer = SummaryWriter(log_dir=os.path.join(log_dir, 'validation'))
+    data_loader_iter = iter(data_loader)
+    x, y = next(data_loader_iter)
+    try:
+        writer.add_graph(model, x)
+    except Exception as e:
+        print("Failed to save model graph: {}".format(e))
+    return writer, val_writer
+
+
 def run(path_to_model_script, epochs, log_interval, dataloaders,
-        dirname='resnet_models', filename_prefix='resnet', n_saved=2):
+        dirname='resnet_models', filename_prefix='resnet', n_saved=2,
+        log_dir='../../fer2013/logs', launch_tensorboard=False):
+
+    if launch_tensorboard:
+        get_ipython().system_raw('pkill tensorboard')
+        get_ipython().system_raw(
+            'tensorboard --logdir {} --host 0.0.0.0 --port 6006 &'.format(log_dir)
+        )
+        get_ipython().system_raw("npm install -g localtunnel")
+        get_ipython().system_raw('lt --port 6006 >> url.txt 2>&1 &')
+        get_ipython().system_raw('cat /content/url.txt')
 
     # Get the model, optimizer and dataloaders from script
     model_script = dict()
@@ -143,6 +135,8 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
     optimizer = model_script['optimizer']
 
     train_loader, val_loader = dataloaders['Training'], dataloaders['PublicTest']
+
+    writer, val_writer = create_summary_writer(model, train_loader, log_dir)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -165,10 +159,8 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
     earlystop = handlers.EarlyStopping(50, get_val_loss, trainer)
 
     evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
-                              {'optimizer': optimizer, 'model': model})
+                                {'optimizer': optimizer, 'model': model})
     evaluator.add_event_handler(Events.COMPLETED, earlystop)
-    # trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
-    #                           {'optimizer': optimizer, 'model': model})
 
     desc = "ITERATION - loss: {:.3f}"
     pbar = tqdm(
@@ -184,6 +176,8 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
             pbar.desc = desc.format(engine.state.output)
             pbar.update(log_interval)
 
+        writer.add_scalar('training/loss', engine.state.output, engine.state.iteration)
+
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_training_results(engine):
         pbar.refresh()
@@ -195,6 +189,9 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
             "Training Results - Epoch: {}  Avg accuracy: {:.3f} Avg loss: {:.3f}"
             .format(engine.state.epoch, avg_accuracy, avg_nll)
         )
+
+        writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
+        writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(engine):
@@ -208,5 +205,15 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
 
         pbar.n = pbar.last_print_n = 0
 
+        val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
+        val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
+
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def add_histograms(engine):
+        for name, param in model.named_parameters():
+            writer.add_histogram(name, param.clone().cpu().data.numpy(), engine.state.epoch)
+
     trainer.run(train_loader, max_epochs=epochs)
     pbar.close()
+    writer.close()
+    val_writer.close()

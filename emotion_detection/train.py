@@ -1,7 +1,7 @@
 # Import
 import sys
 sys.path.append('../')
-from vision_utils.custom_torch_utils import run
+from custom_torch_utils import run
 from data import get_dataloaders, BATCH_SIZE, DATA_DIR
 import argparse
 
