@@ -24,6 +24,9 @@ parser.add_argument('--checkpoint_dir', type=str, default=CHECKPOINT, help='fold
 parser.add_argument('--log_interval', type=int, default=LOG_INTERVAL, help='Print metrics each log_interval iterations')
 parser.add_argument('--file_name', type=str, default=FILE_NAME, help='filename under which to save the checkpoints')
 parser.add_argument('--n_saved', type=int, default=2, help='Save the n_saved best models')
+parser.add_argument('--log_dir', type=str, default='./', help='directory where to save tensorboard logs')
+parser.add_argument('--launch_tensorboard', type=int, default=0,
+                    help='whether to start tensorboard automatically (0) or not (1)')
 args = parser.parse_args()
 
 
@@ -32,10 +35,9 @@ if __name__ == '__main__':
     print('-----------Creating data loaders---------------------')
     dataloaders = get_dataloaders(args.batch_size, args.data_dir)
 
-    print('----------------Creating a new model-------------------')
     int2bool = {'0': False, 1: True}
 
     print('--------------------print start training--------------------')
     run(args.path_to_model_script, epochs=args.epochs, log_interval=args.log_interval,
         dataloaders=dataloaders, dirname=args.checkpoint_dir, filename_prefix=args.file_name,
-        n_saved=args.n_saved)
+        n_saved=args.n_saved, log_dir=args.log_dir, launch_tensorboard=int2bool[args.launch_tensorboard])
