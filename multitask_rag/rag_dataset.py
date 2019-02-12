@@ -1,6 +1,7 @@
 # Imports
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
+import numpy as np
 import os
 import glob
 import torch
@@ -38,11 +39,12 @@ class RagDataset(Dataset):
         :param idx:
         :return:
         """
-        image = Image.open(self.list_images[idx])
+        image = np.expand_dims(np.array(Image.open(self.list_images[idx])), 0)
         image = self.transform(image)
         labels = self.list_images[idx].split('_')
-        age, gender, race = torch.tensor(float(labels[0])).unsqueeze_(1),\
-                            torch.tensor(int(labels[1])).unsqueeze_(1),  torch.tensor(int(labels[2])).unsqueeze_(1)
+        age, gender, race = torch.tensor(float(labels[0]), dtype=torch.int).unsqueeze_(1),\
+                            torch.tensor(int(labels[1]), dtype=torch.int).unsqueeze_(1),\
+                            torch.tensor(int(labels[2]), dtype=torch.int).unsqueeze_(1)
 
         return image, age, gender, race
 

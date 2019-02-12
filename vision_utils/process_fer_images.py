@@ -22,7 +22,6 @@ FLAGS = ['PublicTest', 'PrivateTest', "Training"]  # Training, PublicTest, Priva
 def main(args=None):
     if args is None:
         parser = argparse.ArgumentParser("Processing fer2013 images")
-        parser.add_argument('--path_to_csv', type=str, default=PATH_TO_CSV, help='Path to the raw fer csv file')
         parser.add_argument('--path_to_detector', type=str, default=PATH_TO_CSV,
                             help='Path to the dlib pretrained detector')
         parser.add_argument('--root_path', type=str, default=ROOT_PATH, help='Path to the root directory where' +

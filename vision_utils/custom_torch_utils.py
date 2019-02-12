@@ -118,13 +118,11 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
         log_dir='../../fer2013/logs', launch_tensorboard=False):
 
     if launch_tensorboard:
-        get_ipython().system_raw('pkill tensorboard')
-        get_ipython().system_raw(
-            'tensorboard --logdir {} --host 0.0.0.0 --port 6006 &'.format(log_dir)
-        )
-        get_ipython().system_raw("npm install -g localtunnel")
-        get_ipython().system_raw('lt --port 6006 >> url.txt 2>&1 &')
-        get_ipython().system_raw('cat /content/url.txt')
+        os.system('pkill tensorboard')
+        os.system('tensorboard --logdir {} --host 0.0.0.0 --port 6006 &'.format(log_dir)        )
+        os.system("npm install -g localtunnel")
+        os.system('lt --port 6006 >> /content/url.txt 2>&1 &')
+        os.system('cat /content/url.txt')
 
     # Get the model, optimizer and dataloaders from script
     model_script = dict()
