@@ -1,5 +1,5 @@
 import torch
-import torch.functional as F
+import torch.nn.functional as F
 import torch.optim as optim
 
 
@@ -71,6 +71,7 @@ class Model(torch.nn.Module):
         x = self.conv2(x)
         x = F.relu(self.batchnorm2(x))
         x = F.max_pool2d(x, 2)
+        # print('1st block')
 
         # 2nd block
         x = self.conv3(x)
@@ -80,6 +81,7 @@ class Model(torch.nn.Module):
         x = F.max_pool2d(x, 2)
 
         x = F.dropout(x, self.dropout)
+        # print('2nd block')
 
         # 3rd block
         x = self.conv5(x)
@@ -87,6 +89,7 @@ class Model(torch.nn.Module):
         x = self.conv6(x)
         x = F.relu(self.batchnorm6(x))
         # x = F.max_pool2d(x, 2)
+        # print('3rd block')
 
         # 4th block
         x = self.conv7(x)
@@ -94,11 +97,13 @@ class Model(torch.nn.Module):
         x = self.conv8(x)
         x = F.relu(self.batchnorm8(x))
         # x = F.max_pool2d(x, 2)
+        # print('4th block')
 
         x = self.avg_pool(x)
         x = F.dropout(x.view(-1, x.size()[1]), self.dropout)
 
         x = F.relu(self.batchnorm9(self.fc1(x)))
+        # print('1st fc')
 
         return self.fc2(x)
         # x = F.dropout(x, self.dropout)

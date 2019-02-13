@@ -132,17 +132,29 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
     model = model_script['my_model']
     optimizer = model_script['optimizer']
 
+    # print('model and optimizer loaded correctly')
     train_loader, val_loader = dataloaders['Training'], dataloaders['PublicTest']
+    # print('data loaders loaded correctly')
+    # print('testing dataloaders')
+    # tmp = next(iter(train_loader))
+    # print(tmp[0].size(), tmp[0].dtype)
+    # print(tmp[1].size(), tmp[1].dtype)
+    # print('-----------')
+    # tmp = next(iter(val_loader))
+    # print(tmp[0].size(), tmp[0].dtype)
+    # print(tmp[1].size(), tmp[1].dtype)
 
     writer, val_writer = create_summary_writer(model, train_loader, log_dir)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     trainer = create_supervised_trainer(model, optimizer, F.cross_entropy, device=device)
+    # print('trainer created succesf')
     evaluator = create_supervised_evaluator(model,
                                             metrics={'accuracy': Accuracy(),
                                                      'nll': Loss(F.cross_entropy)},
                                             device=device)
+    # print('evaluator created sucessf')
 
     def get_val_loss(engine):
         # evaluator.run(val_loader)

@@ -10,7 +10,7 @@ from skimage import exposure
 
 # Define the transforms for the training and validation sets
 BATCH_SIZE = 128
-DATA_DIR = "../../fer2013/processed_images"
+DATA_DIR = "../../fer2013/fer2013.csv"
 
 
 def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR,
@@ -44,13 +44,12 @@ def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR,
     return dataloaders
 
 
-def get_dataloaders_fer48(path_to_csv, batch_size=BATCH_SIZE, chunksize=10000, resize=None, hist_eq=False):
+def get_dataloaders_fer48(data_dir, batch_size=BATCH_SIZE, chunksize=10000, resize=None, hist_eq=False):
 
     """
 
-    :param path_to_csv:
+    :param data_dir:
     :param batch_size:
-    :param flag:
     :param chunksize:
     :param transform:
     :return:
@@ -58,17 +57,22 @@ def get_dataloaders_fer48(path_to_csv, batch_size=BATCH_SIZE, chunksize=10000, r
 
     class HistEq(object):
         def __call__(self, im):
-            return exposure.equalize_hist(im)
+            res = np.expand_dims(exposure.equalize_hist(im), 2)
+            # print(res.dtype)
+            return res
 
     data_transforms = [transforms.ToTensor()]
     if resize:
-        data_transforms.insert(0, transforms.Resize(resize))
-    if hist_eq:
-        data_transforms.insert(1, HistEq)
+        data_transforms = [transforms.Resize(resize)] + data_transforms
+        if hist_eq:
+            data_transforms.insert(1, HistEq())
+    elif hist_eq:
+        data_transforms = [HistEq()] + data_transforms
 
+    data_transforms = transforms.Compose(data_transforms)
     # Load the datasets with ImageFolder
     image_datasets = {
-        x: FerDataset48(path_to_csv, x, chunksize, data_transforms)
+        x: FerDataset48(data_dir, x, chunksize, data_transforms)
         for x in ['Training', 'PublicTest']
     }
 
@@ -86,7 +90,7 @@ class FerDataset48(Dataset):
     Custom pytorch dataset class implementation to load utk_face images
     """
 
-    def __init__(self, data_dir, flag, chunksize=10000, transform=None):
+    def __init__(self, data_dir, flag, chunksize=20000, transform=None):
         """
 
         :param root_dir:
@@ -110,17 +114,22 @@ class FerDataset48(Dataset):
         """
 
         im = np.array([
-            int(i) for i in self.data['pixels'][idx].split(' ')
-        ]).reshape((1, 48, 48))
-        lab = int(self.data['emotion'][idx])
+            int(i) for i in self.data['pixels'].iloc[idx].split(' ')
+        ]).reshape((48, 48))
+        # lab = np.array(self.data['emotion'].iloc[idx]).reshape((1, 1)).astype(np.uint8)
+        lab = np.array(self.data['emotion'].iloc[idx]).astype(np.uint8)
 
-        return self.transform(im), torch.tensor(lab, dtype=torch.int)
+        im, lab = self.transform(im).to(torch.float32), torch.from_numpy(lab).long()  # torch.from_numpy(lab).unsqueeze_(0)
+        # print(im.dtype, im.size())
+        # print(lab.dtype, lab.size())
 
-    def _read_csv(self, path_to_csv, chunksize, flag='Train'):
+        return im, lab
+
+    def _read_csv(self, path_to_csv, chunksize, flag='Training'):
         chunks = pd.read_csv(path_to_csv, sep=',', chunksize=chunksize)
         list_chunks = []
         for chunk in chunks:
-            mask = chunk['Flag'] == flag
+            mask = chunk['Usage'] == flag
             list_chunks.append(chunk.loc[mask])
         return pd.concat(list_chunks)
 

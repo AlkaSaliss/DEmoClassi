@@ -11,7 +11,7 @@ EPOCHS = 10
 CHECKPOINT = "../checkpoints"
 LOG_INTERVAL = 2
 FILE_NAME = 'resnet'
-PATH_TO_MODEL_SCRIPT = './model_configs/resnet_extra_inputs.py'
+PATH_TO_MODEL_SCRIPT = './model_configs/sep_conv.py'
 
 
 
@@ -43,9 +43,10 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
 
-    int2bool = {'0': False, 1: True}
+    int2bool = {0: False, 1: True}
 
     print('-----------Creating data loaders---------------------')
+    resize = None
     if args.resize:
         resize = tuple([i for i in args.resize])
         if len(resize) == 1:
