@@ -9,7 +9,7 @@ from skimage import exposure
 
 
 # Define the transforms for the training and validation sets
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 DATA_DIR = "../../fer2013/fer2013.csv"
 
 

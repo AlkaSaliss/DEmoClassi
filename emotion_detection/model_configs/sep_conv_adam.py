@@ -56,13 +56,13 @@ class SepConvModel(torch.nn.Module):
         self.fc1 = torch.nn.Linear(self.n_filters[3], 256)
         self.batchnorm9 = torch.nn.BatchNorm1d(256)
 
-        self.fc2 = torch.nn.Linear(256, self.n_class)
+        # self.fc2 = torch.nn.Linear(256, self.n_class)
         # # 2nd fc block
-        # self.fc2 = torch.nn.Linear(256, 128)
-        # self.batchnorm10 = torch.nn.BatchNorm1d(128)
+        self.fc2 = torch.nn.Linear(256, 128)
+        self.batchnorm10 = torch.nn.BatchNorm1d(128)
 
-        # # output block
-        # self.fc3 = torch.nn.Linear(128, self.n_class)
+        # output block
+        self.fc3 = torch.nn.Linear(128, self.n_class)
 
     def forward(self, x):
         # 1st block
@@ -105,19 +105,18 @@ class SepConvModel(torch.nn.Module):
         x = F.relu(self.batchnorm9(self.fc1(x)))
         # print('1st fc')
 
-        return self.fc2(x)
-        # x = F.dropout(x, self.dropout)
+        x = F.dropout(x, self.dropout)
 
-        # x = F.relu(self.batchnorm10(self.fc2(x)))
-        # x = F.dropout(x, self.dropout)
+        x = F.relu(self.batchnorm10(self.fc2(x)))
+        x = F.dropout(x, self.dropout)
         #
-        # x = self.fc3(x)
+        x = self.fc3(x)
         #
-        # return x
+        return x
 
 
 # Define the model
 my_model = SepConvModel()
 
 # Define the optimizer
-optimizer = optim.SGD(my_model.parameters(), lr=1e-4)
+optimizer = optim.Adam(my_model.parameters(), lr=0.01)
