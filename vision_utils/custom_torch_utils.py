@@ -134,7 +134,8 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
 
     train_loader, val_loader = dataloaders['Training'], dataloaders['PublicTest']
 
-    writer, val_writer = create_summary_writer(model, train_loader, log_dir)
+    if launch_tensorboard:
+        writer, val_writer = create_summary_writer(model, train_loader, log_dir)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -173,7 +174,8 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
             pbar.desc = desc.format(engine.state.output)
             pbar.update(log_interval)
 
-        writer.add_scalar('training/loss', engine.state.output, engine.state.iteration)
+        if launch_tensorboard:
+            writer.add_scalar('training/loss', engine.state.output, engine.state.iteration)
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_training_results(engine):
@@ -187,8 +189,9 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
             .format(engine.state.epoch, avg_accuracy, avg_nll)
         )
 
-        writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
-        writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
+        if launch_tensorboard:
+            writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
+            writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(engine):
@@ -202,15 +205,18 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
 
         pbar.n = pbar.last_print_n = 0
 
-        val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
-        val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
+        if launch_tensorboard:
+            val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
+            val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
 
-    @trainer.on(Events.EPOCH_COMPLETED)
-    def add_histograms(engine):
-        for name, param in model.named_parameters():
-            writer.add_histogram(name, param.clone().cpu().data.numpy(), engine.state.epoch)
+    if launch_tensorboard:
+        @trainer.on(Events.EPOCH_COMPLETED)
+        def add_histograms(engine):
+            for name, param in model.named_parameters():
+                writer.add_histogram(name, param.clone().cpu().data.numpy(), engine.state.epoch)
 
     trainer.run(train_loader, max_epochs=epochs)
     pbar.close()
-    writer.close()
-    val_writer.close()
+    if launch_tensorboard:
+        writer.close()
+        val_writer.close()
