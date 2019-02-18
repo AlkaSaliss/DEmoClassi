@@ -115,11 +115,11 @@ def create_summary_writer(model, data_loader, log_dir):
 
 def run(path_to_model_script, epochs, log_interval, dataloaders,
         dirname='resnet_models', filename_prefix='resnet', n_saved=2,
-        log_dir='../../fer2013/logs', launch_tensorboard=False):
+        log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10):
 
     if launch_tensorboard:
         os.system('pkill tensorboard')
-        os.system('tensorboard --logdir {} --host 0.0.0.0 --port 6006 &'.format(log_dir)        )
+        os.system('tensorboard --logdir {} --host 0.0.0.0 --port 6006 &'.format(log_dir))
         os.system("npm install -g localtunnel")
         os.system('lt --port 6006 >> /content/url.txt 2>&1 &')
         os.system('cat /content/url.txt')
@@ -154,11 +154,11 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
                                             n_saved=n_saved, create_dir=True,
                                             require_empty=False, save_as_state_dict=True
                                             )
-    earlystop = handlers.EarlyStopping(50, get_val_loss, trainer)
+    earlystop = handlers.EarlyStopping(patience, get_val_loss, trainer)
 
     evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
                                 {'optimizer': optimizer, 'model': model})
-    evaluator.add_event_handler(Events.COMPLETED, earlystop)
+    evaluator.add_event_handler(Events.EPOCH_COMPLETED, earlystop)
 
     desc = "ITERATION - loss: {:.3f}"
     pbar = tqdm(
