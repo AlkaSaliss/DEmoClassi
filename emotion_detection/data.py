@@ -48,7 +48,7 @@ def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR,
 
 
 def get_dataloaders_fer48(data_dir, batch_size=BATCH_SIZE, chunksize=10000,
-                          resize=None, to_rgb=True, hist_eq=False, normalize=False):
+                          resize=None, add_channel_dim=False, to_rgb=True, hist_eq=False, normalize=False):
 
     """
 
@@ -59,13 +59,19 @@ def get_dataloaders_fer48(data_dir, batch_size=BATCH_SIZE, chunksize=10000,
     :return:
     """
 
+    class AddChannel(object):
+        def __call__(self, im):
+            return np.expand_dims(im, 2)
+
     class HistEq(object):
         def __call__(self, im):
-            res = np.expand_dims(exposure.equalize_hist(im), 2)
-            return res
+            # res = AddChannel()(exposure.equalize_hist(im))
+            return exposure.equalize_hist(im)
 
     class ToRGB(object):
         def __call__(self, im):
+            if len(im.shape) < 3:
+                im = np.expand_dims(im, 2)
             return np.repeat(im, 3, axis=2)
 
     class SkResize(object):
@@ -81,12 +87,24 @@ def get_dataloaders_fer48(data_dir, batch_size=BATCH_SIZE, chunksize=10000,
         data_transforms = [SkResize(resize)] + data_transforms
         if hist_eq:
             data_transforms.insert(1, HistEq())
-        if to_rgb:
-            data_transforms.insert(2, ToRGB())
+            if to_rgb:
+                data_transforms.insert(2, ToRGB())
+            elif add_channel_dim:
+                data_transforms.insert(2, AddChannel())
+        elif to_rgb:
+            data_transforms.insert(1, ToRGB())
+
     elif hist_eq:
         data_transforms = [HistEq()] + data_transforms
         if to_rgb:
             data_transforms.insert(1, ToRGB())
+        elif add_channel_dim:
+            data_transforms.insert(1, AddChannel())
+    elif to_rgb:
+        data_transforms = [ToRGB()] + data_transforms
+    elif add_channel_dim:
+        data_transforms = [AddChannel()] + data_transforms
+
     if normalize:
         data_transforms = data_transforms + [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]
 
@@ -137,6 +155,7 @@ class FerDataset48(Dataset):
         im = np.array([
             int(i) for i in self.data['pixels'].iloc[idx].split(' ')
         ]).reshape((48, 48))
+
         # lab = np.array(self.data['emotion'].iloc[idx]).reshape((1, 1)).astype(np.uint8)
         lab = np.array(self.data['emotion'].iloc[idx]).astype(np.uint8)
 

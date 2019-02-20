@@ -19,7 +19,7 @@ class SeparableConv(torch.nn.Module):
 
 class SepConvModel(torch.nn.Module):
 
-    def __init__(self, dropout=0.2, n_class=7, n_filters=[64, 128, 256, 512]):
+    def __init__(self, dropout=0.5, n_class=7, n_filters=[64, 128, 256, 512]):
         super(SepConvModel, self).__init__()
 
         self.dropout = dropout
@@ -119,4 +119,4 @@ class SepConvModel(torch.nn.Module):
 my_model = SepConvModel()
 
 # Define the optimizer
-optimizer = optim.Adam(my_model.parameters(), lr=0.01)
+optimizer = optim.Adam(my_model.parameters(), lr=0.001)

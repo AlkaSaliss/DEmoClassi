@@ -23,6 +23,9 @@ parser.add_argument('--resize', nargs='+', type=int, default=None,
                             help='int or 2 or tuple of ints to resize the input image')
 parser.add_argument('--to_rgb', type=int, default=0,
                             help='whether (1) to convert gray to rgb (repeat the images 3 times) or not (0)')
+parser.add_argument('--add_channel_dim', type=int, default=0,
+                            help='whether (1) to add a third channel dimension to the '
+                                 'array image (to get h*w*c) or not (0)')
 parser.add_argument('--normalize', type=int, default=0,
                             help='whether to normalize (1) or not (0), useful for imagenet pretrained models')
 parser.add_argument('--hist_eq', type=int, default=1,
@@ -57,6 +60,7 @@ if __name__ == '__main__':
         if len(resize) == 1:
             resize = resize * 2
     dataloaders = data_loader_lambda[args.data_loader](batch_size=args.batch_size, data_dir=args.data_dir,
+                                                       add_channel_dim=int2bool[args.add_channel_dim],
                                                        chunksize=args.chunksize, resize=resize,
                                                        normalize=int2bool[args.normalize],
                                                        to_rgb=int2bool[args.to_rgb],
