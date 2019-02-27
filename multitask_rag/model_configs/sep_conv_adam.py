@@ -6,7 +6,7 @@ import torch.optim as optim
 class SeparableConv(torch.nn.Module):
     """Depthwise separable convolution layer implementation."""
 
-    def __init__(self, nin, nout, kernel_size=3):
+    def __init__(self, nin, nout, kernel_size=5):
         super(SeparableConv, self).__init__()
         self.depthwise = torch.nn.Conv2d(nin, nin, kernel_size=kernel_size, groups=nin)
         self.pointwise = torch.nn.Conv2d(nin, nout, kernel_size=1)
@@ -19,7 +19,7 @@ class SeparableConv(torch.nn.Module):
 
 class SepConvModel(torch.nn.Module):
 
-    def __init__(self, dropout=0.7, n_class=7, n_filters=[64, 128, 256, 512]):
+    def __init__(self, dropout=0.5, n_class=7, n_filters=[64, 128, 256, 512]):
         super(SepConvModel, self).__init__()
 
         self.dropout = dropout
@@ -27,7 +27,7 @@ class SepConvModel(torch.nn.Module):
         self.n_filters = n_filters
 
         # 1st block
-        self.conv1 = SeparableConv(1, self.n_filters[0])
+        self.conv1 = SeparableConv(3, self.n_filters[0])
         self.batchnorm1 = torch.nn.BatchNorm2d(self.n_filters[0])
         self.conv2 = SeparableConv(self.n_filters[0], self.n_filters[0])
         self.batchnorm2 = torch.nn.BatchNorm2d(self.n_filters[0])
@@ -62,7 +62,9 @@ class SepConvModel(torch.nn.Module):
         self.batchnorm10 = torch.nn.BatchNorm1d(128)
 
         # output block
-        self.fc3 = torch.nn.Linear(128, self.n_class)
+        self.output_age = torch.nn.Linear(128, 1)
+        self.output_gender = torch.nn.Linear(128, 2)
+        self.output_race = torch.nn.Linear(128, 5)
 
     def forward(self, x):
         # 1st block
@@ -71,7 +73,6 @@ class SepConvModel(torch.nn.Module):
         x = self.conv2(x)
         x = F.relu(self.batchnorm2(x))
         x = F.max_pool2d(x, 2)
-        # print('1st block')
 
         # 2nd block
         x = self.conv3(x)
@@ -81,7 +82,6 @@ class SepConvModel(torch.nn.Module):
         x = F.max_pool2d(x, 2)
 
         x = F.dropout(x, self.dropout)
-        # print('2nd block')
 
         # 3rd block
         x = self.conv5(x)
@@ -89,7 +89,6 @@ class SepConvModel(torch.nn.Module):
         x = self.conv6(x)
         x = F.relu(self.batchnorm6(x))
         # x = F.max_pool2d(x, 2)
-        # print('3rd block')
 
         # 4th block
         x = self.conv7(x)
@@ -97,26 +96,26 @@ class SepConvModel(torch.nn.Module):
         x = self.conv8(x)
         x = F.relu(self.batchnorm8(x))
         # x = F.max_pool2d(x, 2)
-        # print('4th block')
 
         x = self.avg_pool(x)
         x = F.dropout(x.view(-1, x.size()[1]), self.dropout)
 
         x = F.relu(self.batchnorm9(self.fc1(x)))
-        # print('1st fc')
 
         x = F.dropout(x, self.dropout)
 
         x = F.relu(self.batchnorm10(self.fc2(x)))
         x = F.dropout(x, self.dropout)
         #
-        x = self.fc3(x)
+        age = self.output_age(x)
+        gender = self.output_gender(x)
+        race = self.output_race(x)
         #
-        return x
+        return age, gender, race
 
 
 # Define the model
 my_model = SepConvModel()
 
 # Define the optimizer
-optimizer = optim.Adam(my_model.parameters(), lr=0.0001)
+optimizer = optim.Adam(my_model.parameters(), lr=0.01)
