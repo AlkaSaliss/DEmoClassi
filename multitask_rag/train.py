@@ -8,6 +8,7 @@ from multitask_rag.rag_dataset import get_dataloaders, BATCH_SIZE, DATA_DIR
 import argparse
 from tqdm import tqdm
 from ignite.engine.engine import Engine, Events
+from ignite import handlers
 import torch
 import torch.nn.functional as F
 from ignite.metrics.metric import Metric
@@ -255,19 +256,19 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
                                                       device=device)
 
     def get_val_loss(engine):
-        return -engine.state.metrics['nll']
+        return -engine.state.metrics['mt_loss']
 
-    # checkpointer = handlers.ModelCheckpoint(dirname=dirname, filename_prefix=filename_prefix,
-    #                                         score_function=get_val_loss,
-    #                                         score_name='val_loss',
-    #                                         n_saved=n_saved, create_dir=True,
-    #                                         require_empty=False, save_as_state_dict=True
-    #                                         )
-    # earlystop = handlers.EarlyStopping(patience, get_val_loss, trainer)
+    checkpointer = handlers.ModelCheckpoint(dirname=dirname, filename_prefix=filename_prefix,
+                                            score_function=get_val_loss,
+                                            score_name='val_loss',
+                                            n_saved=n_saved, create_dir=True,
+                                            require_empty=False, save_as_state_dict=True
+                                            )
+    earlystop = handlers.EarlyStopping(patience, get_val_loss, trainer)
     #
-    # evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
-    #                             {'optimizer': optimizer, 'model': model})
-    # evaluator.add_event_handler(Events.EPOCH_COMPLETED, earlystop)
+    evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
+                                {'optimizer': optimizer, 'model': model})
+    evaluator.add_event_handler(Events.EPOCH_COMPLETED, earlystop)
 
     desc = "ITERATION - loss: {:.3f}"
     pbar = tqdm(
