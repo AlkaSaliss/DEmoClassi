@@ -16,7 +16,7 @@ class RagDataset(Dataset):
     Custom pytorch dataset class implementation to load utk_face images
     """
 
-    def __init__(self, root_dir, transform=None):
+    def __init__(self, root_dir, transform=None, n_samples=None):
         """
 
         :param root_dir:
@@ -25,13 +25,16 @@ class RagDataset(Dataset):
         self.root_dir = root_dir
         self.list_images = glob.glob(os.path.join(self.root_dir, '*[jJ][pP]*'))
         self.transform = transform
+        self.n_samples = n_samples
 
     def __len__(self):
         """
 
         :return:
         """
-        return len(self.list_images)
+        if self.n_samples is None:
+            return len(self.list_images)
+        return self.n_samples
 
     def __getitem__(self, idx):
         """
@@ -68,7 +71,7 @@ def split_utk(src_dir, dest_dir, train_split=0.7):
     test_path = os.path.join(dest_dir, 'test')
 
     list_images = glob.glob(os.path.join(src_dir, '*jp*'))
-    list_labels = [item.split('_') for item in list_images]
+    list_labels = [item.split('/')[-1].split('_') for item in list_images]
     age = [item[0] for item in list_labels]
     gender = [item[1] for item in list_labels]
     race = [item[2] for item in list_labels]
@@ -96,7 +99,7 @@ BATCH_SIZE = 32
 DATA_DIR = "/media/sf_Documents/COMPUTER_VISION/UTKface_Aligned_cropped/utk_face_split"
 
 
-def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR,
+def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR, n_samples=None,
                     resize=(224, 224), normalize=False, **split_args):
     """
 
@@ -133,7 +136,7 @@ def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR,
 
     # Load the datasets with ImageFolder
     image_datasets = {
-        x: RagDataset(os.path.join(data_dir, x), data_transforms[x])
+        x: RagDataset(os.path.join(data_dir, x), data_transforms[x], n_samples)
         for x in ['train', 'valid', 'test']
     }
 

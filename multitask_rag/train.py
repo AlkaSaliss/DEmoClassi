@@ -9,6 +9,7 @@ import argparse
 from tqdm import tqdm
 from ignite.engine.engine import Engine, Events
 import torch
+import torch.nn.functional as F
 from ignite.metrics.metric import Metric
 from ignite.exceptions import NotComputableError
 import os
@@ -22,6 +23,7 @@ class MultiTaskAccuracy(Metric):
 
     def reset(self):
         self._num_correct = [0, 0]
+        self._l1_loss_age = 0.0
         self._num_examples = 0
 
     def update(self, output):
@@ -31,20 +33,25 @@ class MultiTaskAccuracy(Metric):
 
         _, ind_gender = torch.max(y_pred_gender, 1)
         _, ind_race = torch.max(y_pred_race, 1)
-        correct_gender = torch.sum(ind_gender == y_age.data)
+        correct_gender = torch.sum(ind_gender == y_gender.data)
         correct_race = torch.sum(ind_race == y_race.data)
+        l1_loss = torch.nn.L1Loss()
+        l1_loss_age = torch.sqrt(l1_loss(y_pred_age, y_age))
 
         self._num_correct[0] += correct_gender
         self._num_correct[1] += correct_race
-        self._num_examples += y_pred.shape[0]
+        self._l1_loss_age += l1_loss_age * y_age.shape[0]
+        self._num_examples += y_age.shape[0]
 
     def compute(self):
         if self._num_examples == 0:
             raise NotComputableError('Accuracy must have at least one example before it can be computed.')
-        return self._num_correct[0] / self._num_examples, self._num_correct[1] / self._num_examples
+        return self._l1_loss_age / self._num_examples,\
+               self._num_correct[0] / self._num_examples,\
+               self._num_correct[1] / self._num_examples
 
 
-def my_multi_task_loss(y_pred, y, weights=[1, 1, 1]):
+def my_multi_task_loss(y_pred, y, weights=[0.1, 1, 1]):
 
     mse_loss = torch.nn.MSELoss()
     xe_loss = torch.nn.CrossEntropyLoss()
@@ -82,7 +89,7 @@ class MutliTaskLoss(Metric):
     """
 
     def __init__(self, loss_fn=my_multi_task_loss, output_transform=lambda x: x,
-                 batch_size=lambda x: x.shape[0]):
+                 batch_size=lambda x: x[0].shape[0]):
         super(MutliTaskLoss, self).__init__(output_transform)
         self._loss_fn = loss_fn
         self._batch_size = batch_size
@@ -284,11 +291,12 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
         pbar.refresh()
         evaluator.run(train_loader)
         metrics = evaluator.state.metrics
-        gender_acc, race_acc = metrics['mt_accuracy']
+        age_l1_loss, gender_acc, race_acc = metrics['mt_accuracy']
         avg_nll = metrics['mt_loss']
         tqdm.write(
-            "Training Results - Epoch: {}  Gender accuracy: {:.3f} ** Race accuracy: {:.3f} ** Avg loss: {:.3f}"
-            .format(engine.state.epoch, gender_acc, race_acc, avg_nll)
+            "Training Results - Epoch: {} Age L1-loss accuracy: {:.3f} ** Gender accuracy: {:.3f} "
+            "** Race accuracy: {:.3f} ** Avg loss: {:.3f}"
+            .format(engine.state.epoch, age_l1_loss, gender_acc, race_acc, avg_nll)
         )
 
         # if launch_tensorboard:
@@ -299,11 +307,12 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
     def log_validation_results(engine):
         evaluator.run(val_loader)
         metrics = evaluator.state.metrics
-        gender_acc, race_acc = metrics['mt_accuracy']
+        age_l1_loss, gender_acc, race_acc = metrics['mt_accuracy']
         avg_nll = metrics['mt_loss']
         tqdm.write(
-            "Validation Results - Epoch: {}  Gender accuracy: {:.3f} ** Race accuracy: {:.3f} ** Avg loss: {:.3f}"
-            .format(engine.state.epoch, gender_acc, race_acc, avg_nll))
+            "Validation Results - Epoch: {} Age L1-loss accuracy: {:.3f} ** Gender accuracy: {:.3f} **"
+            " Race accuracy: {:.3f} ** Avg loss: {:.3f}"
+            .format(engine.state.epoch, age_l1_loss, gender_acc, race_acc, avg_nll))
 
         pbar.n = pbar.last_print_n = 0
 
@@ -333,6 +342,8 @@ parser.add_argument('--normalize', type=int, default=0,
                             help='whether to normalize (1) or not (0), useful for imagenet pretrained models')
 
 parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Batch size for train and validation data')
+parser.add_argument('--n_samples', type=int, default=None, help='Number of images to sample,'
+                                                                ' useful for debugging with small sets')
 parser.add_argument('--path_to_model_script', type=str, default=PATH_TO_MODEL_SCRIPT,
                     help='path to the script containing model and optimizer definition')
 parser.add_argument('--epochs', type=int, default=EPOCHS, help='Number of training iterations')
@@ -363,6 +374,7 @@ if __name__ == '__main__':
     dataloaders = get_dataloaders(batch_size=args.batch_size, data_dir=args.data_dir,
                                   resize=resize,
                                   normalize=int2bool[args.normalize],
+                                  n_samples=args.n_samples,
                                   src_dir=args.src_dir,
                                   dest_dir=args.dest_dir,
                                   train_split=args.train_split
