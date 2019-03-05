@@ -360,7 +360,7 @@ parser.add_argument('--src_dir', type=str, default=SRC_DIR, help='source directo
                                                                     'not already split in train-test-valid')
 parser.add_argument('--dest_dir', type=str, default=DEST_DIR, help='destination where to store train, val '
                                                                     'and test sub-folders after split')
-parser.add_argument('--train_split', type=float, default=None, help='% of train split, between 0 and 1')
+parser.add_argument('--train_split', type=float, default=None, help='proportion of train split, between 0 and 1')
 parser.add_argument('--checkpoint_dir', type=str, default=CHECKPOINT, help='folder to save checkpoints')
 parser.add_argument('--log_interval', type=int, default=LOG_INTERVAL, help='Print metrics each log_interval iterations')
 parser.add_argument('--file_name', type=str, default=FILE_NAME, help='filename under which to save the checkpoints')
