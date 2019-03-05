@@ -217,9 +217,12 @@ def create_supervised_evaluator_multitask(model, metrics={
 
 
 PATH_TO_MODEL_SCRIPT = './model_configs/sep_conv_adam.py'
-SRC_DIR = "/media/sf_Documents/COMPUTER_VISION/UTKface_Aligned_cropped/UTKFace"
-DEST_DIR = "/media/sf_Documents/COMPUTER_VISION/UTKface_Aligned_cropped/utk_face_split"
-TRAIN_SPLIT = 0.7
+# SRC_DIR = "/media/sf_Documents/COMPUTER_VISION/UTKface_Aligned_cropped/UTKFace"
+# DEST_DIR = "/media/sf_Documents/COMPUTER_VISION/UTKface_Aligned_cropped/utk_face_split"
+# TRAIN_SPLIT = 0.7
+SRC_DIR = None
+DEST_DIR = None
+TRAIN_SPLIT = None
 CHECKPOINT = './checkpoint'
 FILE_NAME = 'sep_conv_adam'
 LOG_INTERVAL = 2

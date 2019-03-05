@@ -16,10 +16,11 @@ class ConvModelMultiTask(nn.Module):
         self.output_gender = nn.Linear(128, 2)
         self.output_race = nn.Linear(128, 5)
 
-    def forward(self, age, gender, race):
-        age = self.output_age(self.conv_base(age))
-        gender = self.output_gender(self.conv_base(gender))
-        race = self.output_race(self.conv_base(race))
+    def forward(self, x):
+        x = self.conv_base(x)
+        age = self.output_age(x)
+        gender = self.output_gender(x)
+        race = self.output_race(x)
         return age, gender, race
 
 
