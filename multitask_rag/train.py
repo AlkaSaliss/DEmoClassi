@@ -37,12 +37,15 @@ class MultiTaskAccuracy(Metric):
         correct_gender = torch.sum(ind_gender == y_gender.data)
         correct_race = torch.sum(ind_race == y_race.data)
         l1_loss = torch.nn.L1Loss()
-        l1_loss_age = torch.sqrt(l1_loss(y_pred_age, y_age))
+        l1_loss_age = l1_loss(y_pred_age, y_age)
 
-        self._num_correct[0] += correct_gender
-        self._num_correct[1] += correct_race
+        # print('*********', correct_race, correct_gender, '***************')
+
+        self._num_correct[0] += correct_gender.cpu().item()
+        self._num_correct[1] += correct_race.cpu().item()
         self._l1_loss_age += l1_loss_age * y_age.shape[0]
         self._num_examples += y_age.shape[0]
+        # print(self._num_correct[0], '*******', self._num_correct[1])
 
     def compute(self):
         if self._num_examples == 0:
@@ -295,7 +298,7 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
         age_l1_loss, gender_acc, race_acc = metrics['mt_accuracy']
         avg_nll = metrics['mt_loss']
         tqdm.write(
-            "Training Results - Epoch: {} Age L1-loss accuracy: {:.3f} ** Gender accuracy: {:.3f} "
+            "Training Results - Epoch: {} Age L1-loss: {:.3f} ** Gender accuracy: {:.3f} "
             "** Race accuracy: {:.3f} ** Avg loss: {:.3f}"
             .format(engine.state.epoch, age_l1_loss, gender_acc, race_acc, avg_nll)
         )
@@ -311,7 +314,7 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
         age_l1_loss, gender_acc, race_acc = metrics['mt_accuracy']
         avg_nll = metrics['mt_loss']
         tqdm.write(
-            "Validation Results - Epoch: {} Age L1-loss accuracy: {:.3f} ** Gender accuracy: {:.3f} **"
+            "Validation Results - Epoch: {} Age L1-loss: {:.3f} ** Gender accuracy: {:.3f} **"
             " Race accuracy: {:.3f} ** Avg loss: {:.3f}"
             .format(engine.state.epoch, age_l1_loss, gender_acc, race_acc, avg_nll))
 
@@ -336,7 +339,7 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
 
 
 parser = argparse.ArgumentParser('Train a pytorch model')
-parser.add_argument('--resize', type=int, default=224,
+parser.add_argument('--resize', type=int, default=128,
                             help='int representing height and width for resizing the input image')
 
 parser.add_argument('--normalize', type=int, default=0,
@@ -370,7 +373,9 @@ if __name__ == '__main__':
     int2bool = {0: False, 1: True}
 
     print('-----------Creating data loaders---------------------')
-    resize = (args.resize,)*2
+    resize = None
+    if args.resize is not None:
+        resize = (args.resize,)*2
 
     dataloaders = get_dataloaders(batch_size=args.batch_size, data_dir=args.data_dir,
                                   resize=resize,

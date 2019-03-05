@@ -8,9 +8,10 @@ import torch.nn as nn
 class ConvModelMultiTask(nn.Module):
     """custom Pytorch neural network module for multitask learning"""
 
-    def __init__(self, model_name='resnet', feature_extract=True, use_pretrained=True):
+    def __init__(self, model_name='vgg', feature_extract=True, use_pretrained=True):
         super(ConvModelMultiTask, self).__init__()
         self.conv_base, input_size = initialize_model(model_name, feature_extract, 'utk', use_pretrained)
+        self.conv_base
         self.output_age = nn.Linear(128, 1)
         self.output_gender = nn.Linear(128, 2)
         self.output_race = nn.Linear(128, 5)
@@ -26,16 +27,13 @@ my_model = ConvModelMultiTask()
 # Define the optimizer
 optimizer = optim.Adam(
     [
-        {"params": my_model.conv_base.fc, "lr": 1e-3},
+        {"params": my_model.conv_base.classifier[6].parameters(), "lr": 1e-3},
         {"params": my_model.output_age.parameters(), "lr": 1e-3},
         {"params": my_model.output_gender.parameters(), "lr": 1e-3},
         {"params": my_model.output_race.parameters(), "lr": 1e-3},
-        {"params": my_model.conv_base.bn.parameters()},
-        {"params": my_model.conv_base.conv1.parameters()},
-        {"params": my_model.conv_base.layer1.parameters()},
-        {"params": my_model.conv_base.layer2.parameters()},
-        {"params": my_model.conv_base.layer3.parameters()},
-        {"params": my_model.conv_base.layer4.parameters()},
+        {"params": my_model.conv_base.classifier[0].parameters()},
+        {"params": my_model.conv_base.classifier[3].parameters()},
+        {"params": my_model.conv_base.features.parameters()}
     ],
     lr=1e-6,
 )

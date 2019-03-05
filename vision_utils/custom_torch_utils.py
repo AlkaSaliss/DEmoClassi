@@ -24,9 +24,9 @@ def initialize_model(model_name, feature_extract, num_classes=7, task='fer2013',
     input_size = 0
 
     if model_name == "resnet":
-        """ Resnet 34
+        """ Resnet 18
         """
-        model_ft = models.resnet34(pretrained=use_pretrained)
+        model_ft = models.resnet18(pretrained=use_pretrained)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
         if task == 'fer2013':
@@ -48,9 +48,9 @@ def initialize_model(model_name, feature_extract, num_classes=7, task='fer2013',
         input_size = 224
 
     elif model_name == "vgg":
-        """ VGG19_bn
+        """ VGG11
         """
-        model_ft = models.vgg19_bn(pretrained=use_pretrained)
+        model_ft = models.vgg11_bn(pretrained=use_pretrained)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier[6].in_features
         if task == 'fer2013':

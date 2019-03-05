@@ -72,11 +72,13 @@ def split_utk(src_dir, dest_dir, train_split=0.7):
 
     list_images = glob.glob(os.path.join(src_dir, '*jp*'))
     list_labels = [item.split('/')[-1].split('_') for item in list_images]
-    age = [item[0] for item in list_labels]
+    # age = [item[0] for item in list_labels]
     gender = [item[1] for item in list_labels]
     race = [item[2] for item in list_labels]
-    labels = [i+j+k for i, j, k in zip(age, gender, race)]
-
+    labels = [j+k for j, k in zip(gender, race)]
+    # labels = [i + j + k for i, j, k in zip(age, gender, race)]
+    from collections import Counter
+    print(Counter(labels))
     train_images, val_images, train_labels, val_labels = train_test_split(list_images, labels,
                                                                           test_size=1.0-train_split, stratify=labels)
     val_images, test_images = train_test_split(val_images, test_size=0.5, stratify=val_labels)
@@ -119,7 +121,7 @@ def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR, n_samples=None,
 
     data_transforms = {
         'train': transforms.Compose([
-            transforms.RandomRotation(15),
+            # transforms.RandomRotation(15),
             transforms.Resize(resize),
             transforms.ToTensor(),
 

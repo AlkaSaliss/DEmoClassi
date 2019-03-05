@@ -118,4 +118,4 @@ class SepConvModel(torch.nn.Module):
 my_model = SepConvModel()
 
 # Define the optimizer
-optimizer = optim.Adam(my_model.parameters(), lr=0.01)
+optimizer = optim.Adam(my_model.parameters(), lr=0.001)
