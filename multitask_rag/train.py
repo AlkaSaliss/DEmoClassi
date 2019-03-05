@@ -340,7 +340,6 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
     #     val_writer.close()
 
 
-
 parser = argparse.ArgumentParser('Train a pytorch model')
 parser.add_argument('--resize', type=int, default=128,
                             help='int representing height and width for resizing the input image')
