@@ -21,10 +21,10 @@ my_model, input_size = initialize_model(model_name=MODEL_NAME, feature_extract=F
 # Define the optimizer
 optimizer = optim.Adam(
     [
-        {"params": my_model.classifier[6].parameters(), "lr": 1e-2},
+        {"params": my_model.classifier[6].parameters(), "lr": 1e-3},
         {"params": my_model.features.parameters()},
         {"params": my_model.classifier[0].parameters()},
         {"params": my_model.classifier[3].parameters()},
     ],
-    lr=1e-5,
+    lr=1e-6,
 )

@@ -120,4 +120,4 @@ class SepConvModel(torch.nn.Module):
 my_model = SepConvModel()
 
 # Define the optimizer
-optimizer = optim.SGD(my_model.parameters(), lr=1e-4)
+optimizer = optim.SGD(my_model.parameters(), lr=1e-3)
