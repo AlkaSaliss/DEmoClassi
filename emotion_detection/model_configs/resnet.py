@@ -12,18 +12,18 @@ USE_PRETRAINED = True
 
 
 my_model, input_size = initialize_model(model_name=MODEL_NAME, feature_extract=FEATURE_EXTRACT,
-                                     num_classes=NUM_CLASSES, task=TASK, use_pretrained=USE_PRETRAINED)
+                                        num_classes=NUM_CLASSES, task=TASK, use_pretrained=USE_PRETRAINED)
 
 
 # Define the optimizer
 optimizer = optim.Adam(
     [
-        {"params": my_model.fc.parameters(), "lr": 1e-2},
+        {"params": my_model.fc.parameters(), "lr": 1e-3},
         {"params": my_model.conv1.parameters()},
         {"params": my_model.layer1.parameters()},
         {"params": my_model.layer2.parameters()},
         {"params": my_model.layer3.parameters()},
         {"params": my_model.layer4.parameters()},
     ],
-    lr=1e-5,
+    lr=1e-6,
 )

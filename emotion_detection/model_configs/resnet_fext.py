@@ -16,4 +16,4 @@ my_model, input_size = initialize_model(model_name=MODEL_NAME, feature_extract=F
 
 
 # Define the optimizer
-optimizer = optim.Adam(my_model.fc.parameters(), lr=1e-2)
+optimizer = optim.Adam(my_model.fc.parameters(), lr=1e-3)

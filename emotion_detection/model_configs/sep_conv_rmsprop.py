@@ -119,4 +119,4 @@ class SepConvModel(torch.nn.Module):
 my_model = SepConvModel()
 
 # Define the optimizer
-optimizer = optim.RMSprop(my_model.parameters(), lr=0.0001)
+optimizer = optim.RMSprop(my_model.parameters(), lr=1e-3)
