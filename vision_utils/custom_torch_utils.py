@@ -9,6 +9,8 @@ from ignite import handlers
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
 import os
+import glob
+import shutil
 
 
 def set_parameter_requires_grad(model, feature_extracting):
@@ -115,7 +117,8 @@ def create_summary_writer(model, data_loader, log_dir):
 
 def run(path_to_model_script, epochs, log_interval, dataloaders,
         dirname='resnet_models', filename_prefix='resnet', n_saved=2,
-        log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10):
+        log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10,
+        resume_model=None, resume_optimizer=None, backup_step=1, backup_path=''):
 
     if launch_tensorboard:
         os.makedirs(log_dir, exist_ok=True)
@@ -132,6 +135,11 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
 
     model = model_script['my_model']
     optimizer = model_script['optimizer']
+
+    if resume_model:
+        model.load_state_dict(torch.load(resume_model))
+    if resume_optimizer:
+        optimizer.load_state_dict(torch.load(resume_model))
 
     train_loader, val_loader = dataloaders['Training'], dataloaders['PublicTest']
 
@@ -209,6 +217,27 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
         if launch_tensorboard:
             val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
             val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
+
+    # optimizer and model that are in the gdrive, created from a previous run
+    original_files = glob.glob(os.path.join(backup_path, '*.pth*'))
+
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def backup_checkpoints(engine):
+        if engine.state.epoch % backup_step == 0:
+
+            # get old model and optimizer files paths so that we can remove them after copying the newer ones
+            old_files = glob.glob(os.path.join(backup_path, '*.pth'))
+
+            # get new model and optimizer checkpoints
+            new_files = glob.glob(os.path.join(dirname, '*.pth*'))
+            if len(new_files) > 0:  # copy new checkpoints from local checkpoint folder to the backup_path folder
+                for f_ in new_files:
+                    shutil.copy2(f_, backup_path)
+
+                if len(old_files) > 0:  # remove older checkpoints as the new ones have been copied
+                    for f_ in old_files:
+                        if f_ not in original_files:
+                            os.remove(f_)
 
     if launch_tensorboard:
         @trainer.on(Events.EPOCH_COMPLETED)

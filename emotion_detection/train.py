@@ -14,7 +14,6 @@ FILE_NAME = 'resnet'
 PATH_TO_MODEL_SCRIPT = './model_configs/sep_conv.py'
 
 
-
 parser = argparse.ArgumentParser('Train a pytorch model')
 parser.add_argument('--data_loader', type=str, default='get_dataloaders_fer48',
                     help='name of the dataloader functions, current choices include get_dataloaders_fer48 and '
@@ -46,6 +45,17 @@ parser.add_argument('--log_dir', type=str, default='./', help='directory where t
 parser.add_argument('--patience', type=int, default=10, help='Patience in terms of number of epochs for early stopping')
 parser.add_argument('--launch_tensorboard', type=int, default=0,
                     help='whether to start tensorboard automatically (0) or not (1)')
+parser.add_argument('--resume_model', type=str, default=None,
+                            help='if given, path to an old model checkpoint from which to restore weights')
+parser.add_argument('--resume_optimizer', type=str, default=None,
+                            help='if given, path to an old optimizer checkpoint from which to restore state from a '
+                                 'previous run')
+parser.add_argument('--backup_step', type=int, default=1,
+                            help='backup current checkpoints in a given directory every backup_step epochs')
+parser.add_argument('--backup_path', type=str, default=None,
+                            help='path to folder where to backup current checkpoints, typically when training on'
+                                 'google colab this is a path to a folder in my google drive '
+                                 'so that I can periodically copy my model checkpoints to google drive')
 args = parser.parse_args()
 
 
@@ -70,4 +80,6 @@ if __name__ == '__main__':
     run(args.path_to_model_script, epochs=args.epochs, log_interval=args.log_interval,
         dataloaders=dataloaders, dirname=args.checkpoint_dir, filename_prefix=args.file_name,
         n_saved=args.n_saved, log_dir=args.log_dir,
-        launch_tensorboard=int2bool[args.launch_tensorboard], patience=args.patience)
+        launch_tensorboard=int2bool[args.launch_tensorboard], patience=args.patience,
+        resume_model=args.resume_model, resume_optimizer=args.resume_optimizer,
+        backup_step=args.backup_step, backup_path=args.backup_path)
