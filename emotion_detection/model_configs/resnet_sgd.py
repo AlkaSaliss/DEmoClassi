@@ -31,5 +31,6 @@ optimizer = optim.SGD(
 )
 
 scheduler1 = CosineAnnealingScheduler(optimizer.param_groups[0], 'lr', 1e-1, 1e-4, 10)
-scheduler2 = CosineAnnealingScheduler(optimizer.param_groups[1:], 'lr', 1e-7, 1e-5, 10)
-lr_schedulers = [scheduler1, scheduler2]
+scheduler2 = [CosineAnnealingScheduler(optimizer.param_groups[i+1], 'lr', 1e-7, 1e-5, 10)
+              for i in range(5)]
+lr_schedulers = [scheduler1] + scheduler2

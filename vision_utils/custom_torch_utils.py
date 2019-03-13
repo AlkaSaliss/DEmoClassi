@@ -213,19 +213,18 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
         if launch_tensorboard:
             val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
             val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
-        return -avg_nll
 
-    # def get_val_loss(engine):
-    #     return -engine.state.metrics['nll']
+    def get_val_loss(engine):
+        evaluator.run(val_loader)
+        return -evaluator.state.metrics['nll']
 
     checkpointer = handlers.ModelCheckpoint(dirname=dirname, filename_prefix=filename_prefix,
-                                            # score_function=get_val_loss,
-                                            score_function=log_validation_results,
+                                            score_function=get_val_loss,
                                             score_name='val_loss',
                                             n_saved=n_saved, create_dir=True,
                                             require_empty=False, save_as_state_dict=True
                                             )
-    earlystop = handlers.EarlyStopping(patience, log_validation_results, trainer)
+    earlystop = handlers.EarlyStopping(patience, get_val_loss, trainer)
 
     evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
                                 {'optimizer': optimizer, 'model': model})
