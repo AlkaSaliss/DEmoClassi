@@ -10,10 +10,11 @@ from tqdm import tqdm
 from ignite.engine.engine import Engine, Events
 from ignite import handlers
 import torch
-import torch.nn.functional as F
 from ignite.metrics.metric import Metric
 from ignite.exceptions import NotComputableError
 import os
+import glob
+import shutil
 
 
 class MultiTaskAccuracy(Metric):
@@ -39,13 +40,10 @@ class MultiTaskAccuracy(Metric):
         l1_loss = torch.nn.L1Loss()
         l1_loss_age = l1_loss(y_pred_age, y_age)
 
-        # print('*********', correct_race, correct_gender, '***************')
-
         self._num_correct[0] += correct_gender.cpu().item()
         self._num_correct[1] += correct_race.cpu().item()
         self._l1_loss_age += l1_loss_age * y_age.shape[0]
         self._num_examples += y_age.shape[0]
-        # print(self._num_correct[0], '*******', self._num_correct[1])
 
     def compute(self):
         if self._num_examples == 0:
@@ -55,15 +53,16 @@ class MultiTaskAccuracy(Metric):
                self._num_correct[1] / self._num_examples
 
 
-def my_multi_task_loss(y_pred, y, weights=[0.1, 1, 1]):
+def my_multi_task_loss(y_pred, y, weights=[0.01, 1, 1]):
 
-    mse_loss = torch.nn.MSELoss()
+    # mse_loss = torch.nn.MSELoss()
+    l1_loss = torch.nn.L1Loss()
     xe_loss = torch.nn.CrossEntropyLoss()
 
     y_pred_age, y_pred_gender, y_pred_race = y_pred
     y_age, y_gender, y_race = y
 
-    age_loss = mse_loss(y_pred_age, y_age)
+    age_loss = l1_loss(y_pred_age, y_age)
     gender_loss = xe_loss(y_pred_gender, y_gender)
     race_loss = xe_loss(y_pred_race, y_race)
 
@@ -157,7 +156,7 @@ def create_supervised_trainer_multitask(model, optimizer, loss_fn=my_multi_task_
     if device:
         model.to(device)
 
-    def _update(engine, batch):
+    def _update(_, batch):
         model.train()
         optimizer.zero_grad()
         x, y_age, y_gender, y_race = prepare_batch(batch, device=device, non_blocking=non_blocking)
@@ -198,7 +197,7 @@ def create_supervised_evaluator_multitask(model, metrics={
     if device:
         model.to(device)
 
-    def _inference(engine, batch):
+    def _inference(_, batch):
         model.eval()
         with torch.no_grad():
             x, y_age, y_gender, y_race = prepare_batch(batch, device=device, non_blocking=non_blocking)
@@ -231,7 +230,8 @@ EPOCHS = 2
 
 def run(path_to_model_script, epochs, log_interval, dataloaders,
         dirname='resnet_models', filename_prefix='resnet', n_saved=2,
-        log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10):
+        log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10,
+        resume_model=None, resume_optimizer=None, backup_step=1, backup_path=None):
 
     # if launch_tensorboard:
     #     os.system('pkill tensorboard')
@@ -248,6 +248,11 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
     model = model_script['my_model']
     optimizer = model_script['optimizer']
 
+    if resume_model:
+        model.load_state_dict(torch.load(resume_model))
+    if resume_optimizer:
+        optimizer.load_state_dict(torch.load(resume_model))
+
     train_loader, val_loader = dataloaders['train'], dataloaders['valid']
 
     if launch_tensorboard:
@@ -260,21 +265,6 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
                                                       metrics={'mt_accuracy': MultiTaskAccuracy(),
                                                                'mt_loss': MutliTaskLoss()},
                                                       device=device)
-
-    def get_val_loss(engine):
-        return -engine.state.metrics['mt_loss']
-
-    checkpointer = handlers.ModelCheckpoint(dirname=dirname, filename_prefix=filename_prefix,
-                                            score_function=get_val_loss,
-                                            score_name='val_loss',
-                                            n_saved=n_saved, create_dir=True,
-                                            require_empty=False, save_as_state_dict=True
-                                            )
-    earlystop = handlers.EarlyStopping(patience, get_val_loss, trainer)
-    #
-    evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
-                                {'optimizer': optimizer, 'model': model})
-    evaluator.add_event_handler(Events.EPOCH_COMPLETED, earlystop)
 
     desc = "ITERATION - loss: {:.3f}"
     pbar = tqdm(
@@ -326,6 +316,44 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
         # if launch_tensorboard:
         #     val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
         #     val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
+        return -avg_nll
+
+    # def get_val_loss(engine):
+    #     return -engine.state.metrics['mt_loss']
+
+    checkpointer = handlers.ModelCheckpoint(dirname=dirname, filename_prefix=filename_prefix,
+                                            # score_function=get_val_loss,
+                                            score_function=log_validation_results,
+                                            score_name='val_loss',
+                                            n_saved=n_saved, create_dir=True,
+                                            require_empty=False, save_as_state_dict=True
+                                            )
+    earlystop = handlers.EarlyStopping(patience, log_validation_results, trainer)
+    #
+    evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
+                                {'optimizer': optimizer, 'model': model})
+    evaluator.add_event_handler(Events.EPOCH_COMPLETED, earlystop)
+
+    # optimizer and model that are in the gdrive, created from a previous run
+    original_files = glob.glob(os.path.join(backup_path, '*.pth*'))
+
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def backup_checkpoints(engine):
+        if backup_path is not None:
+            if engine.state.epoch % backup_step == 0:
+                # get old model and optimizer files paths so that we can remove them after copying the newer ones
+                old_files = glob.glob(os.path.join(backup_path, '*.pth'))
+
+                # get new model and optimizer checkpoints
+                new_files = glob.glob(os.path.join(dirname, '*.pth*'))
+                if len(new_files) > 0:  # copy new checkpoints from local checkpoint folder to the backup_path folder
+                    for f_ in new_files:
+                        shutil.copy2(f_, backup_path)
+
+                    if len(old_files) > 0:  # remove older checkpoints as the new ones have been copied
+                        for f_ in old_files:
+                            if f_ not in original_files:
+                                os.remove(f_)
 
     # if launch_tensorboard:
     #     @trainer.on(Events.EPOCH_COMPLETED)
@@ -340,44 +368,64 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
     #     val_writer.close()
 
 
-parser = argparse.ArgumentParser('Train a pytorch model')
-parser.add_argument('--resize', type=int, default=128,
+def main(args=None):
+
+    if args is None:
+        parser = argparse.ArgumentParser('Train a pytorch model')
+        parser.add_argument('--resize', type=int, default=128,
                             help='int representing height and width for resizing the input image')
 
-parser.add_argument('--normalize', type=int, default=0,
+        parser.add_argument('--normalize', type=int, default=0,
                             help='whether to normalize (1) or not (0), useful for imagenet pretrained models')
 
-parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Batch size for train and validation data')
-parser.add_argument('--n_samples', type=int, default=None, help='Number of images to sample,'
-                                                                ' useful for debugging with small sets')
-parser.add_argument('--path_to_model_script', type=str, default=PATH_TO_MODEL_SCRIPT,
-                    help='path to the script containing model and optimizer definition')
-parser.add_argument('--epochs', type=int, default=EPOCHS, help='Number of training iterations')
-parser.add_argument('--data_dir', type=str, default=DATA_DIR,
-                    help='root directory containing train, valid and test image folders')
-parser.add_argument('--src_dir', type=str, default=SRC_DIR, help='source directory containing raw images if they are '
-                                                                    'not already split in train-test-valid')
-parser.add_argument('--dest_dir', type=str, default=DEST_DIR, help='destination where to store train, val '
-                                                                    'and test sub-folders after split')
-parser.add_argument('--train_split', type=float, default=None, help='proportion of train split, between 0 and 1')
-parser.add_argument('--checkpoint_dir', type=str, default=CHECKPOINT, help='folder to save checkpoints')
-parser.add_argument('--log_interval', type=int, default=LOG_INTERVAL, help='Print metrics each log_interval iterations')
-parser.add_argument('--file_name', type=str, default=FILE_NAME, help='filename under which to save the checkpoints')
-parser.add_argument('--n_saved', type=int, default=2, help='Save the n_saved best models')
-parser.add_argument('--log_dir', type=str, default='./', help='directory where to save tensorboard logs')
-parser.add_argument('--patience', type=int, default=10, help='Patience in terms of number of epochs for early stopping')
-parser.add_argument('--launch_tensorboard', type=int, default=0,
-                    help='whether to start tensorboard automatically (0) or not (1)')
-args = parser.parse_args()
+        parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Batch size for '
+                                                                               'train and validation data')
+        parser.add_argument('--n_samples', type=int, default=None, help='Number of images to sample,'
+                                                                        ' useful for debugging with small sets')
+        parser.add_argument('--path_to_model_script', type=str, default=PATH_TO_MODEL_SCRIPT,
+                            help='path to the script containing model and optimizer definition')
+        parser.add_argument('--epochs', type=int, default=EPOCHS, help='Number of training iterations')
+        parser.add_argument('--data_dir', type=str, default=DATA_DIR,
+                            help='root directory containing train, valid and test image folders')
+        parser.add_argument('--src_dir', type=str, default=SRC_DIR, help='source directory containing '
+                                                                         'raw images if they are '
+                                                                         'not already split in train-test-valid')
+        parser.add_argument('--dest_dir', type=str, default=DEST_DIR, help='destination where to store train, val '
+                                                                           'and test sub-folders after split')
+        parser.add_argument('--train_split', type=float, default=None,
+                            help='proportion of train split, in the range 0 to 1')
+        parser.add_argument('--checkpoint_dir', type=str, default=CHECKPOINT,
+                            help='folder to save checkpoints')
+        parser.add_argument('--log_interval', type=int, default=LOG_INTERVAL,
+                            help='Print metrics each log_interval iterations')
+        parser.add_argument('--file_name', type=str, default=FILE_NAME,
+                            help='filename under which to save the checkpoints')
+        parser.add_argument('--n_saved', type=int, default=2, help='Save the n_saved best models')
+        parser.add_argument('--log_dir', type=str, default='./', help='directory where to save tensorboard logs')
+        parser.add_argument('--patience', type=int, default=10,
+                            help='Patience in terms of number of epochs for early stopping')
+        parser.add_argument('--launch_tensorboard', type=int, default=0,
+                            help='whether to start tensorboard automatically (0) or not (1)')
+        parser.add_argument('--resume_model', type=str, default=None,
+                            help='if given, path to an old model checkpoint from which to restore weights')
+        parser.add_argument('--resume_optimizer', type=str, default=None,
+                            help='if given, path to an old optimizer checkpoint from which to restore state from a '
+                                 'previous run')
+        parser.add_argument('--backup_step', type=int, default=1,
+                            help='backup current checkpoints in a given directory every backup_step epochs')
+        parser.add_argument('--backup_path', type=str, default=None,
+                            help='path to folder where to backup current checkpoints, typically when training on'
+                                 'google colab this is a path to a folder in my google drive '
+                                 'so that I can periodically copy my model checkpoints to google drive')
 
-if __name__ == '__main__':
+        args = parser.parse_args()
 
     int2bool = {0: False, 1: True}
 
     print('-----------Creating data loaders---------------------')
     resize = None
     if args.resize is not None:
-        resize = (args.resize,)*2
+        resize = (args.resize,) * 2
 
     dataloaders = get_dataloaders(batch_size=args.batch_size, data_dir=args.data_dir,
                                   resize=resize,
@@ -392,4 +440,12 @@ if __name__ == '__main__':
     run(args.path_to_model_script, epochs=args.epochs, log_interval=args.log_interval,
         dataloaders=dataloaders, dirname=args.checkpoint_dir, filename_prefix=args.file_name,
         n_saved=args.n_saved, log_dir=args.log_dir,
-        launch_tensorboard=int2bool[args.launch_tensorboard], patience=args.patience)
+        launch_tensorboard=int2bool[args.launch_tensorboard], patience=args.patience,
+        resume_model=args.resume_model, resume_optimizer=args.resume_optimizer,
+        backup_step=args.backup_step, backup_path=args.backup_path
+        )
+
+
+if __name__ == '__main__':
+
+    main()

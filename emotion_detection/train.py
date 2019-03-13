@@ -64,6 +64,10 @@ def main(args=None):
                             help='path to folder where to backup current checkpoints, typically when training on'
                                  'google colab this is a path to a folder in my google drive '
                                  'so that I can periodically copy my model checkpoints to google drive')
+        parser.add_argument('--lr_start', type=float, default=None,
+                            help='starting value for learning rate in case a schduler is provided')
+        parser.add_argument('--lr_end', type=float, default=None,
+                            help='end value for learning rate in case a schduler is provided')
         args = parser.parse_args()
 
     print('-----------Creating data loaders---------------------')
@@ -72,7 +76,7 @@ def main(args=None):
         resize = tuple([i for i in args.resize])
         if len(resize) == 1:
             resize = resize * 2
-    
+
     dataloaders = data_loader_lambda[args.data_loader](batch_size=args.batch_size, data_dir=args.data_dir,
                                                        add_channel_dim=int2bool[args.add_channel_dim],
                                                        chunksize=args.chunksize, resize=resize,
@@ -86,7 +90,8 @@ def main(args=None):
         n_saved=args.n_saved, log_dir=args.log_dir,
         launch_tensorboard=int2bool[args.launch_tensorboard], patience=args.patience,
         resume_model=args.resume_model, resume_optimizer=args.resume_optimizer,
-        backup_step=args.backup_step, backup_path=args.backup_path)
+        backup_step=args.backup_step, backup_path=args.backup_path,
+        lr_start=args.lr_start, lr_end=args.lr_end)
 
 
 if __name__ == '__main__':
