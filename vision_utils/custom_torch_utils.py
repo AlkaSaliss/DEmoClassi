@@ -11,7 +11,8 @@ from tensorboardX import SummaryWriter
 import os
 import glob
 import shutil
-from ignite.contrib.handlers.param_scheduler import CosineAnnealingScheduler
+import numpy as np
+
 
 def set_parameter_requires_grad(model, feature_extracting):
     if feature_extracting:
@@ -103,6 +104,10 @@ def initialize_model(model_name, feature_extract, num_classes=7, task='fer2013',
     return model_ft, input_size
 
 
+# variable to track validation loss and computing it separately for each handler (checkpoint, early stop, ...)
+val_loss = [np.inf]
+
+
 def create_summary_writer(model, data_loader, log_dir):
     writer = SummaryWriter(log_dir=os.path.join(log_dir, 'train'))
     val_writer = SummaryWriter(log_dir=os.path.join(log_dir, 'validation'))
@@ -150,6 +155,7 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+    # variable that stores val loss
     trainer = create_supervised_trainer(model, optimizer, F.cross_entropy, device=device)
     evaluator = create_supervised_evaluator(model,
                                             metrics={'accuracy': Accuracy(),
@@ -200,6 +206,7 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(engine):
+
         evaluator.run(val_loader)
         metrics = evaluator.state.metrics
         avg_accuracy = metrics['accuracy']
@@ -210,13 +217,16 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
 
         pbar.n = pbar.last_print_n = 0
 
+        global val_loss
+        val_loss.append(avg_nll)
+
         if launch_tensorboard:
             val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
             val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
 
     def get_val_loss(engine):
-        evaluator.run(val_loader)
-        return -evaluator.state.metrics['nll']
+        global val_loss
+        return -val_loss[-1]
 
     checkpointer = handlers.ModelCheckpoint(dirname=dirname, filename_prefix=filename_prefix,
                                             score_function=get_val_loss,
