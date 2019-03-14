@@ -3,7 +3,6 @@ sys.path.append('../../vision_utils')
 import torch.optim as optim
 from vision_utils.custom_torch_utils import initialize_model
 from ignite.contrib.handlers.param_scheduler import CosineAnnealingScheduler
-from ignite.contrib.handlers.param_scheduler import ConcatScheduler
 
 
 MODEL_NAME = 'resnet'

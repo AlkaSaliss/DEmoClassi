@@ -56,7 +56,6 @@ class SepConvModel(torch.nn.Module):
         self.fc1 = torch.nn.Linear(self.n_filters[3], 256)
         self.batchnorm9 = torch.nn.BatchNorm1d(256)
 
-        # self.fc2 = torch.nn.Linear(256, self.n_class)
         # # 2nd fc block
         self.fc2 = torch.nn.Linear(256, 128)
         self.batchnorm10 = torch.nn.BatchNorm1d(128)
@@ -67,47 +66,39 @@ class SepConvModel(torch.nn.Module):
     def forward(self, x):
         # 1st block
         x = self.conv1(x)
-        x = F.relu(self.batchnorm1(x))
+        x = self.batchnorm1(F.relu(x))
         x = self.conv2(x)
-        x = F.relu(self.batchnorm2(x))
+        x = self.batchnorm2(F.relu(x))
         x = F.max_pool2d(x, 2)
-        # print('1st block')
 
         # 2nd block
         x = self.conv3(x)
-        x = F.relu(self.batchnorm3(x))
+        x = self.batchnorm3(F.relu(x))
         x = self.conv4(x)
-        x = F.relu(self.batchnorm4(x))
+        x = self.batchnorm4(F.relu(x))
         x = F.max_pool2d(x, 2)
 
         x = F.dropout(x, self.dropout)
-        # print('2nd block')
 
         # 3rd block
         x = self.conv5(x)
-        x = F.relu(self.batchnorm5(x))
+        x = self.batchnorm5(F.relu(x))
         x = self.conv6(x)
-        x = F.relu(self.batchnorm6(x))
-        # x = F.max_pool2d(x, 2)
-        # print('3rd block')
+        x = self.batchnorm6(F.relu(x))
 
         # 4th block
         x = self.conv7(x)
-        x = F.relu(self.batchnorm7(x))
+        x = self.batchnorm7(F.relu(x))
         x = self.conv8(x)
-        x = F.relu(self.batchnorm8(x))
-        # x = F.max_pool2d(x, 2)
-        # print('4th block')
+        x = self.batchnorm8(F.relu(x))
 
         x = self.avg_pool(x)
         x = F.dropout(x.view(-1, x.size()[1]), self.dropout)
 
-        x = F.relu(self.batchnorm9(self.fc1(x)))
-        # print('1st fc')
-
+        x = self.batchnorm9(F.relu(self.fc1(x)))
         x = F.dropout(x, self.dropout)
 
-        x = F.relu(self.batchnorm10(self.fc2(x)))
+        x = self.batchnorm10(F.relu(self.fc2(x)))
         x = F.dropout(x, self.dropout)
         #
         x = self.fc3(x)

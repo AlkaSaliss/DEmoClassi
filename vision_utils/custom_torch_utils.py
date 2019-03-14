@@ -146,8 +146,11 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
     if resume_model:
         model.load_state_dict(torch.load(resume_model))
     if resume_optimizer:
-        optimizer.load_state_dict(torch.load(resume_model))
-
+        optimizer.load_state_dict(torch.load(resume_optimizer))
+        for state in optimizer.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.cuda()
     train_loader, val_loader = dataloaders['Training'], dataloaders['PublicTest']
 
     if launch_tensorboard:
