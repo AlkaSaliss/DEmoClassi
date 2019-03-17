@@ -54,7 +54,7 @@ class MultiTaskAccuracy(Metric):
                self._num_correct[1] / self._num_examples
 
 
-def my_multi_task_loss(y_pred, y, weights=[0.01, 1, 1]):
+def my_multi_task_loss(y_pred, y, weights=[1/10, 1/0.16, 1/0.44]):
 
     # mse_loss = torch.nn.MSELoss()
     l1_loss = torch.nn.L1Loss()
