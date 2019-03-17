@@ -15,6 +15,7 @@ from ignite.exceptions import NotComputableError
 import os
 import glob
 import shutil
+import numpy as np
 
 
 class MultiTaskAccuracy(Metric):
@@ -227,6 +228,9 @@ FILE_NAME = 'sep_conv_adam'
 LOG_INTERVAL = 2
 EPOCHS = 2
 
+# variable to track validation loss and computing it separately for each handler (checkpoint, early stop, ...)
+val_loss = [np.inf]
+
 
 def run(path_to_model_script, epochs, log_interval, dataloaders,
         dirname='resnet_models', filename_prefix='resnet', n_saved=2,
@@ -313,13 +317,17 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
 
         pbar.n = pbar.last_print_n = 0
 
+        global val_loss
+        val_loss.append(avg_nll)
+
         # if launch_tensorboard:
         #     val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
         #     val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
 
+
     def get_val_loss(engine):
-        evaluator.run(val_loader)
-        return -evaluator.state.metrics['mt_loss']
+        global val_loss
+        return -val_loss[-1]
 
     checkpointer = handlers.ModelCheckpoint(dirname=dirname, filename_prefix=filename_prefix,
                                             score_function=get_val_loss,
