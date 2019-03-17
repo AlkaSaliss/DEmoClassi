@@ -436,7 +436,7 @@ def main(args=None):
                                   train_split=args.train_split
                                   )
 
-    print('--------------------print start training--------------------')
+    print('-------------------- start training--------------------')
     run(args.path_to_model_script, epochs=args.epochs, log_interval=args.log_interval,
         dataloaders=dataloaders, dirname=args.checkpoint_dir, filename_prefix=args.file_name,
         n_saved=args.n_saved, log_dir=args.log_dir,

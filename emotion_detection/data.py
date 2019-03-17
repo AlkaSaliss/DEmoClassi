@@ -19,6 +19,28 @@ DATA_DIR = "../../fer2013/fer2013.csv"
 def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR,
                     chunksize=10000, resize=None, to_rgb=True, hist_eq=False, normalize=False):
 
+    """
+    This function creates pytorch train and validation data loaders from a directory containing
+    preprocessed images.
+    The directory contains 2 subdirectories  named `Training` and `PublicTest`
+    that contain resp. train and validation images. Note that in each of both dorectories there's also subdirectories,
+     each one containing images for a given target class.
+
+    :param batch_size: positive int for batch size
+    :param data_dir: root folder containing `Training` and `PublicTest` subdirectories
+    :param chunksize: This argument is not used, placed here for API consistency to have a common interface
+                        with other data loaders functions
+    :param resize: This argument is not used, placed here for API consistency to have a common interface
+                        with other data loaders functions
+    :param to_rgb: This argument is not used, placed here for API consistency to have a common interface
+                        with other data loaders functions
+    :param hist_eq: This argument is not used, placed here for API consistency to have a common interface
+                        with other data loaders functions
+    :param normalize: Boolean indicating whether to normalize the input images, useful when using pretrained models.
+    :return: a dictionary with `Training` and `PublicTest` as keys, and  the corresponding values are pytorch
+            `Dataloader` objects, that yields train and validation batches resp.
+    """
+
     to_rgb = None
     chunksize = None
     resize = None
@@ -51,12 +73,22 @@ def get_dataloaders_fer48(data_dir, batch_size=BATCH_SIZE, chunksize=10000,
                           resize=None, add_channel_dim=False, to_rgb=True, hist_eq=False, normalize=False):
 
     """
+    Function to create pytorch data loaders from a csv contraining Fer2013 dataset
 
-    :param data_dir:
-    :param batch_size:
-    :param chunksize:
-    :param transform:
-    :return:
+    :param data_dir: full path to the csv file
+    :param batch_size: positive int for batch size
+    :param chunksize: positive int, for loading the csv in chunks of this size. useful when we have a big file
+                    that can not fit into memory
+    :param resize: tuple of int (height, width), resize input image using this shape
+    :param add_channel_dim: the fer images are (48, 48), but when using CNN we need three dimensions: height, width,
+            and channel. This argument is a boolean telling whether to add this third dimension.
+    :param to_rgb: fer images are gray scale, so when using transfer learning we need to convert them into rgb images.
+            this argument is a boolean telling whether to repeat the grayscale image into 3 channels to mimic a colored
+            image
+    :param hist_eq: boolean, whether to apply histogram equalization to the grayscale image
+    :param normalize: whether to normalize the image, using imagenet parameters
+    :return: a dictionary with `Training` and `PublicTest` as keys, and  the corresponding values are pytorch
+            `Dataloader` objects, that yields train and validation batches resp.
     """
 
     class AddChannel(object):
@@ -126,42 +158,46 @@ def get_dataloaders_fer48(data_dir, batch_size=BATCH_SIZE, chunksize=10000,
 
 class FerDataset48(Dataset):
     """
-    Custom pytorch dataset class implementation to load utk_face images
+    Custom pytorch `Dataset` class implementation to load fer images dataset.
+    This class loads the images from the original fer raw csv file
     """
 
     def __init__(self, data_dir, flag, chunksize=20000, transform=None):
+
         """
 
-        :param root_dir:
-        :param transform:
+        :param data_dir: path to the csv file containing the data
+        :param flag: string indicating which slice of data to load. IN the fer csv file, there are 3 sets of data:
+                `Training`, `PublicTest`, `PrivateTest`
+        :param chunksize: positive int, for loading the csv in chunks of this size. useful when we have a big file
+                    that can not fit into memory
+        :param transform: pytorch transform to apply to the image
         """
+
         self.data = self._read_csv(data_dir, chunksize, flag)
         self.transform = transform
 
     def __len__(self):
         """
 
-        :return:
+        :return: the size of the dataset
         """
         return self.data.shape[0]
 
     def __getitem__(self, idx):
         """
 
-        :param idx:
-        :return:
+        :param idx: retrieve the image and label at position `idx`
+        :return: 2 pytorch tensors representing th eimage and the label resp.
         """
 
         im = np.array([
             int(i) for i in self.data['pixels'].iloc[idx].split(' ')
         ]).reshape((48, 48))
 
-        # lab = np.array(self.data['emotion'].iloc[idx]).reshape((1, 1)).astype(np.uint8)
         lab = np.array(self.data['emotion'].iloc[idx]).astype(np.uint8)
 
-        im, lab = self.transform(im).to(torch.float32), torch.from_numpy(lab).long()  # torch.from_numpy(lab).unsqueeze_(0)
-        # print(im.dtype, im.size())
-        # print(lab.dtype, lab.size())
+        im, lab = self.transform(im).to(torch.float32), torch.from_numpy(lab).long()
 
         return im, lab
 
@@ -173,6 +209,8 @@ class FerDataset48(Dataset):
             list_chunks.append(chunk.loc[mask])
         return pd.concat(list_chunks)
 
+
+# a dictionary mapping the two dataloaders functions defined above with their names
 data_loader_lambda = {
     'get_dataloaders_fer48': get_dataloaders_fer48,
     'get_dataloaders': get_dataloaders

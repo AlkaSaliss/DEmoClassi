@@ -15,12 +15,35 @@ import numpy as np
 
 
 def set_parameter_requires_grad(model, feature_extracting):
+    """
+    Utility fucntion for setting parameters gradient collection to true (finetuning) or false (features extraction)
+    :param model: pytorch nn.Module class or subclass
+    :param feature_extracting: boolean. If True don't collect gradients for the module's parameters
+    :return:
+    """
     if feature_extracting:
         for param in model.parameters():
             param.requires_grad = False
 
 
 def initialize_model(model_name, feature_extract, num_classes=7, task='fer2013', use_pretrained=True):
+
+    """
+    Instantiate a pytorch model loading eventually pretrained weights from torchvision models zoo
+
+    :param model_name: string indicating model name; valid candidates are `resnet`, `vgg`, `densenet`,
+            `squeezenet`, `inception`, `alexnet`
+    :param feature_extract: boolean. If True don't collect gradients for the module's parameters
+    :param num_classes: number of classes to add for the classification layer
+    :param task: string indicating whether we are performing emotion detection or age/gender/race classification.
+            in the 1st case (task='fer2013') we just need to replace the classification using the right number of classes.
+            In the 2nd case we add a dense layer of size 128, and do not add classification layer as it is a
+            multitask task.
+    :param use_pretrained: boolean, whether to load pretrained weights trained on imagenet
+    :return: a pytorch model and the input size, typically 224 or 229 as different pretrained models may have
+            different input image size.
+    """
+
     # Initialize these variables which will be set in this if statement. Each of these
     #   variables is model specific.
     model_ft = None
@@ -109,6 +132,14 @@ val_loss = [np.inf]
 
 
 def create_summary_writer(model, data_loader, log_dir):
+    """
+    Utility function for creating tensorboard summaries
+
+    :param model: pytorch model
+    :param data_loader: a dataloader yielding input and label batches
+    :param log_dir: root folder where to log train and validation summaries
+    :return: train and validation writers that can be used to track other information later
+    """
     writer = SummaryWriter(log_dir=os.path.join(log_dir, 'train'))
     val_writer = SummaryWriter(log_dir=os.path.join(log_dir, 'validation'))
     data_loader_iter = iter(data_loader)
@@ -125,6 +156,32 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
         log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10,
         resume_model=None, resume_optimizer=None, backup_step=1, backup_path=None,
         lr_start=None, lr_end=None):
+
+    """
+    Utility function to hide pytorch models training routine.
+
+    :param path_to_model_script: path to the script defining a pytprch model and an optimizer. The script must
+            contain at least two variables names `my_model` (for the model to train)
+            and `optimizer` (for the optimizer that tracks the parameters of `my_model`).
+            Optionally the script may contain a list of pytorch-ignite schedulers, typically learning rate scheduler
+            for instance.
+    :param epochs: maximum number of epoch
+    :param log_interval: print training info each log_interval iterations
+    :param dataloaders: dictionary of data loaders objects, the keys are `Training` and `PublicTesting`
+    :param dirname:
+    :param filename_prefix:
+    :param n_saved:
+    :param log_dir:
+    :param launch_tensorboard:
+    :param patience:
+    :param resume_model:
+    :param resume_optimizer:
+    :param backup_step:
+    :param backup_path:
+    :param lr_start:
+    :param lr_end:
+    :return:
+    """
 
     if launch_tensorboard:
         os.makedirs(log_dir, exist_ok=True)

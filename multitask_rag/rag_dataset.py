@@ -78,7 +78,6 @@ def split_utk(src_dir, dest_dir, train_split=0.7):
     labels = [j+k for j, k in zip(gender, race)]
     # labels = [i + j + k for i, j, k in zip(age, gender, race)]
     from collections import Counter
-    print(Counter(labels))
     train_images, val_images, train_labels, val_labels = train_test_split(list_images, labels,
                                                                           test_size=1.0-train_split, stratify=labels)
     val_images, test_images = train_test_split(val_images, test_size=0.5, stratify=val_labels)
