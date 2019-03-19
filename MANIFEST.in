@@ -1,7 +1,6 @@
 include *.txt
 include *.md
-
-exclude *old*.py
+exclude *old*
 exclude *.ipynb
 exclude *.dat
 exclude *.pth
