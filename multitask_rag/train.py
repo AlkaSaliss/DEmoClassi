@@ -19,17 +19,27 @@ import numpy as np
 
 
 class MultiTaskAccuracy(Metric):
+    """Custom implementation of pytorch-ignite `Metric` to get multiple metrics from a multitask model"""
 
     def __init__(self, output_transform=lambda x: x):
         self._output_transform = output_transform
         self.reset()
 
     def reset(self):
+        """
+        reset the metric tracking, e.g. at the end of epoch
+        :return:
+        """
         self._num_correct = [0, 0]
         self._l1_loss_age = 0.0
         self._num_examples = 0
 
     def update(self, output):
+        """
+        Compute the number of correct predictions (for gender and race) and the l1 loss (for age) for the current batch
+        :param output: tuple, predicted and true outcomes
+        :return:
+        """
         y_pred, y = output
         y_pred_age, y_pred_gender, y_pred_race = y_pred
         y_age, y_gender, y_race = y
@@ -41,12 +51,17 @@ class MultiTaskAccuracy(Metric):
         l1_loss = torch.nn.L1Loss()
         l1_loss_age = l1_loss(y_pred_age, y_age)
 
+        # Store the partial (current batch) results to compute the metrcis at epoch level
         self._num_correct[0] += correct_gender.cpu().item()
         self._num_correct[1] += correct_race.cpu().item()
         self._l1_loss_age += l1_loss_age * y_age.shape[0]
         self._num_examples += y_age.shape[0]
 
     def compute(self):
+        """
+        Compute the metrics at the end of epoch
+        :return:
+        """
         if self._num_examples == 0:
             raise NotComputableError('Accuracy must have at least one example before it can be computed.')
         return self._l1_loss_age / self._num_examples,\
@@ -55,6 +70,13 @@ class MultiTaskAccuracy(Metric):
 
 
 def my_multi_task_loss(y_pred, y, weights=[1/10, 1/0.16, 1/0.44]):
+    """
+    Multitask loss function. Computes the individual loss for each output and combine them in a weighted average
+    :param y_pred: predicted output
+    :param y: true labels
+    :param weights: list of scalars representing the weight to apply to each loss
+    :return: the weighted average loss
+    """
 
     # mse_loss = torch.nn.MSELoss()
     l1_loss = torch.nn.L1Loss()
@@ -236,6 +258,25 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
         dirname='resnet_models', filename_prefix='resnet', n_saved=2,
         log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10,
         resume_model=None, resume_optimizer=None, backup_step=1, backup_path=None):
+
+    """
+
+    :param path_to_model_script:
+    :param epochs:
+    :param log_interval:
+    :param dataloaders:
+    :param dirname:
+    :param filename_prefix:
+    :param n_saved:
+    :param log_dir:
+    :param launch_tensorboard:
+    :param patience:
+    :param resume_model:
+    :param resume_optimizer:
+    :param backup_step:
+    :param backup_path:
+    :return:
+    """
 
     # if launch_tensorboard:
     #     os.system('pkill tensorboard')

@@ -9,9 +9,9 @@ import argparse
 # Define the constants/hyperparameters
 EPOCHS = 10
 CHECKPOINT = "../checkpoints"
-LOG_INTERVAL = 2
-FILE_NAME = 'resnet'
-PATH_TO_MODEL_SCRIPT = './model_configs/sep_conv.py'
+LOG_INTERVAL = 2  # default value for the number of iterations at which to print training loss
+FILE_NAME = 'resnet'  # default value of name under which to save the model file name
+PATH_TO_MODEL_SCRIPT = './model_configs/sep_conv.py'  # default script defining the pytorch model
 
 
 def main(args=None):
@@ -64,19 +64,23 @@ def main(args=None):
                             help='path to folder where to backup current checkpoints, typically when training on'
                                  'google colab this is a path to a folder in my google drive '
                                  'so that I can periodically copy my model checkpoints to google drive')
-        parser.add_argument('--lr_start', type=float, default=None,
-                            help='starting value for learning rate in case a schduler is provided')
-        parser.add_argument('--lr_end', type=float, default=None,
-                            help='end value for learning rate in case a schduler is provided')
+        parser.add_argument('--n_epochs_freeze', type=int, default=5,
+                            help='number of epochs after which to unfreeze the model parameters, useful for finetuning')
+        parser.add_argument('--n_cycle', type=int, default=5,
+                            help='number of epochs for which to complete a learning rate scheduling cycle')
+        parser.add_argument('--lr_after_freeze', type=int, default=1e-3,
+                            help='set new learning rate after unfreezing layers')
         args = parser.parse_args()
 
     print('-----------Creating data loaders---------------------')
     resize = None
+    # If the resize argument is provided as a single integer `n`, transform it in a tuple of form `(n, n)`
     if args.resize:
         resize = tuple([i for i in args.resize])
         if len(resize) == 1:
             resize = resize * 2
 
+    # Create the train and validation data loaders
     dataloaders = data_loader_lambda[args.data_loader](batch_size=args.batch_size, data_dir=args.data_dir,
                                                        add_channel_dim=int2bool[args.add_channel_dim],
                                                        chunksize=args.chunksize, resize=resize,
@@ -85,13 +89,15 @@ def main(args=None):
                                                        hist_eq=int2bool[args.hist_eq])
 
     print('--------------------print start training--------------------')
+    # Train the model and save checkpoints
     run(args.path_to_model_script, epochs=args.epochs, log_interval=args.log_interval,
         dataloaders=dataloaders, dirname=args.checkpoint_dir, filename_prefix=args.file_name,
         n_saved=args.n_saved, log_dir=args.log_dir,
         launch_tensorboard=int2bool[args.launch_tensorboard], patience=args.patience,
         resume_model=args.resume_model, resume_optimizer=args.resume_optimizer,
         backup_step=args.backup_step, backup_path=args.backup_path,
-        lr_start=args.lr_start, lr_end=args.lr_end)
+        n_epochs_freeze=args.n_epochs_freeze, n_cycle=args.n_cycle,
+        lr_after_freeze=args.lr_after_freeze)
 
 
 if __name__ == '__main__':

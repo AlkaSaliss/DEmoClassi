@@ -50,9 +50,9 @@ def initialize_model(model_name, feature_extract, num_classes=7, task='fer2013',
     input_size = 0
 
     if model_name == "resnet":
-        """ Resnet 18
+        """ Resnet 50
         """
-        model_ft = models.resnet18(pretrained=use_pretrained)
+        model_ft = models.resnet50(pretrained=use_pretrained)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
         if task == 'fer2013':
@@ -74,9 +74,9 @@ def initialize_model(model_name, feature_extract, num_classes=7, task='fer2013',
         input_size = 224
 
     elif model_name == "vgg":
-        """ VGG11
+        """ VGG19
         """
-        model_ft = models.vgg11_bn(pretrained=use_pretrained)
+        model_ft = models.vgg19_bn(pretrained=use_pretrained)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier[6].in_features
         if task == 'fer2013':
@@ -155,7 +155,7 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
         dirname='resnet_models', filename_prefix='resnet', n_saved=2,
         log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10,
         resume_model=None, resume_optimizer=None, backup_step=1, backup_path=None,
-        lr_start=None, lr_end=None):
+        n_epochs_freeze=5, n_cycle=5, lr_after_freeze=1e-3):
 
     """
     Utility function to hide pytorch models training routine.
@@ -224,11 +224,11 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
 
     if lr_schedulers is not None:
         for sched in lr_schedulers:
-            sched.cycle_size = len(train_loader)
-            if lr_start is not None:
-                sched.start_value = lr_start
-            if lr_end is not None:
-                sched.end_value = lr_end
+            sched.cycle_size = len(train_loader) * n_cycle
+            # if lr_start is not None:
+            #     sched.start_value = lr_start
+            # if lr_end is not None:
+            #     sched.end_value = lr_end
             trainer.add_event_handler(Events.ITERATION_STARTED, sched)
 
     desc = "ITERATION - loss: {:.3f}"
@@ -284,6 +284,16 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
             val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
             val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
 
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def unfreeze(engine):
+        if engine.state.epoch == n_epochs_freeze:
+            for param in model.parameters():
+                if not param.requires_grad:
+                    param.requires_grad = True
+                    optimizer.add_param_group(
+                        {'params': param, "lr": lr_after_freeze}
+                    )
+
     def get_val_loss(engine):
         global val_loss
         return -val_loss[-1]
@@ -301,7 +311,8 @@ def run(path_to_model_script, epochs, log_interval, dataloaders,
     evaluator.add_event_handler(Events.EPOCH_COMPLETED, earlystop)
 
     # optimizer and model that are in the gdrive, created from a previous run
-    original_files = glob.glob(os.path.join(backup_path, '*.pth*'))
+    if backup_path is not None:
+        original_files = glob.glob(os.path.join(backup_path, '*.pth*'))
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def backup_checkpoints(engine):

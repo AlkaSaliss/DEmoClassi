@@ -215,3 +215,82 @@ data_loader_lambda = {
     'get_dataloaders_fer48': get_dataloaders_fer48,
     'get_dataloaders': get_dataloaders
 }
+
+
+def get_eval_dataloader(data_dir, batch_size=BATCH_SIZE, chunksize=10000, set_name='PublicTest',
+                          resize=None, add_channel_dim=False, to_rgb=True, hist_eq=False, normalize=False):
+
+    """
+    Function to create pytorch data loaders from a csv contraining Fer2013 dataset
+
+    :param data_dir: full path to the csv file
+    :param batch_size: positive int for batch size
+    :param chunksize: positive int, for loading the csv in chunks of this size. useful when we have a big file
+                    that can not fit into memory
+    :param resize: tuple of int (height, width), resize input image using this shape
+    :param add_channel_dim: the fer images are (48, 48), but when using CNN we need three dimensions: height, width,
+            and channel. This argument is a boolean telling whether to add this third dimension.
+    :param to_rgb: fer images are gray scale, so when using transfer learning we need to convert them into rgb images.
+            this argument is a boolean telling whether to repeat the grayscale image into 3 channels to mimic a colored
+            image
+    :param hist_eq: boolean, whether to apply histogram equalization to the grayscale image
+    :param normalize: whether to normalize the image, using imagenet parameters
+    :return: a dictionary with `Training` and `PublicTest` as keys, and  the corresponding values are pytorch
+            `Dataloader` objects, that yields train and validation batches resp.
+    """
+
+    class AddChannel(object):
+        def __call__(self, im):
+            return np.expand_dims(im, 2)
+
+    class HistEq(object):
+        def __call__(self, im):
+            # res = AddChannel()(exposure.equalize_hist(im))
+            return exposure.equalize_hist(im)
+
+    class ToRGB(object):
+        def __call__(self, im):
+            if len(im.shape) < 3:
+                im = np.expand_dims(im, 2)
+            return np.repeat(im, 3, axis=2)
+
+    class SkResize(object):
+        def __init__(self, size):
+            self.size = size
+
+        def __call__(self, im, size=None):
+            return sk_resize(im, self.size)
+
+    data_transforms = [transforms.ToTensor()]
+    if resize:
+        # data_transforms = [transforms.Resize(resize)] + data_transforms
+        data_transforms = [SkResize(resize)] + data_transforms
+        if hist_eq:
+            data_transforms.insert(1, HistEq())
+            if to_rgb:
+                data_transforms.insert(2, ToRGB())
+            elif add_channel_dim:
+                data_transforms.insert(2, AddChannel())
+        elif to_rgb:
+            data_transforms.insert(1, ToRGB())
+
+    elif hist_eq:
+        data_transforms = [HistEq()] + data_transforms
+        if to_rgb:
+            data_transforms.insert(1, ToRGB())
+        elif add_channel_dim:
+            data_transforms.insert(1, AddChannel())
+    elif to_rgb:
+        data_transforms = [ToRGB()] + data_transforms
+    elif add_channel_dim:
+        data_transforms = [AddChannel()] + data_transforms
+
+    if normalize:
+        data_transforms = data_transforms + [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]
+
+    data_transforms = transforms.Compose(data_transforms)
+
+    image_dataset = FerDataset48(data_dir, set_name, chunksize, data_transforms)
+
+    # Using the image datasets and the transforms, define the dataloaders
+    return DataLoader(image_dataset, batch_size=batch_size, num_workers=8, shuffle=True)

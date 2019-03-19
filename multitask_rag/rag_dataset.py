@@ -17,11 +17,15 @@ class RagDataset(Dataset):
     """
 
     def __init__(self, root_dir, transform=None, n_samples=None):
+
+        """
+        Custom pytorch dataset class for loding utk face images along with labels : age, gender  and race
+
+        :param root_dir: root folder containing the raw images
+        :param transform: pytorch transforms to apply to the raw images
+        :param n_samples: int, number of images samples to consider, useful for taking a small subset for debugging
         """
 
-        :param root_dir:
-        :param transform:
-        """
         self.root_dir = root_dir
         self.list_images = glob.glob(os.path.join(self.root_dir, '*[jJ][pP]*'))
         self.transform = transform
@@ -29,8 +33,7 @@ class RagDataset(Dataset):
 
     def __len__(self):
         """
-
-        :return:
+        :return: The total number of samples in the dataset
         """
         if self.n_samples is None:
             return len(self.list_images)
@@ -38,13 +41,16 @@ class RagDataset(Dataset):
 
     def __getitem__(self, idx):
         """
+        selects a sample and returns it in the right format as model input
 
-        :param idx:
-        :return:
+        :param idx: int representing a sample indew in the whole dataset
+        :return: the sample image at position idx, as pytorch tensor, and corresponding labels
         """
-        # image = np.array(Image.open(self.list_images[idx]))
         image = Image.open(self.list_images[idx])
         image = self.transform(image).float()
+
+        # In the utk face dataset, labels are contained in image names, for instance an image of age 23, black man
+        # is typically named as `root_dir/23_0_1_izudedhdjefedfuiedjk.jpg`
         labels = self.list_images[idx].split('/')[-1].split('_')
         age, gender, race = torch.tensor(float(labels[0])).float(),\
                             torch.tensor(int(labels[1])).long(),\
@@ -55,11 +61,12 @@ class RagDataset(Dataset):
 
 def split_utk(src_dir, dest_dir, train_split=0.7):
     """
-    :param src_dir:
-    :param dest_dir:
-    :param train:
-    :param val:
-    :param test:
+    Utility function for spliting the dataset into train validation and test set.
+
+    :param src_dir: directory containnig the images
+    :param dest_dir: directory where to save the images in 3 subdirectories : `train`, `valid` and `test`
+    :param train_split: a float between 0 and 1, representing the percentage of the training set, the rest will be
+            equally distributed into valid and test sets
     :return:
     """
 
@@ -77,7 +84,7 @@ def split_utk(src_dir, dest_dir, train_split=0.7):
     race = [item[2] for item in list_labels]
     labels = [j+k for j, k in zip(gender, race)]
     # labels = [i + j + k for i, j, k in zip(age, gender, race)]
-    from collections import Counter
+
     train_images, val_images, train_labels, val_labels = train_test_split(list_images, labels,
                                                                           test_size=1.0-train_split, stratify=labels)
     val_images, test_images = train_test_split(val_images, test_size=0.5, stratify=val_labels)
@@ -102,12 +109,19 @@ DATA_DIR = "/media/sf_Documents/COMPUTER_VISION/UTKface_Aligned_cropped/utk_face
 
 def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR, n_samples=None,
                     resize=(224, 224), normalize=False, **split_args):
-    """
 
-    :param batch_size:
-    :param data_dir:
-    :param split_args:
-    :return:
+    """
+    Utility function for creating train, validation and test data loaders
+
+    :param batch_size: int, size of batches
+    :param data_dir: directory containing subdirectories `train` and `valid` and `test`
+    :param n_samples: number of sample images to consider, useful for debugging with small subset
+    :param resize: optional tuple for resizing the images into a new shape
+    :param normalize: boolean, whether to normalize input images, useful when using pretrained models on imagenet
+    :param split_args: kwargs as take by the function `split_utk()` defined above. This can be used to split the data
+            into train, validation and test sets if this is not already done. In thsi case the argument `data_dir` is
+            no longer needed as the data directory will be the dest_dir from `split_args`
+    :return: train, valid and test dataloades
     """
 
     class Identity(object):
