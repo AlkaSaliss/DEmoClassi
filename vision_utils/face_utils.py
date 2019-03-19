@@ -16,7 +16,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-PATH_DETECTOR = "..\\shape_predictor_68_face_landmarks.dat"
+PATH_DETECTOR = "../shape_predictor_68_face_landmarks.dat"
 
 
 # function to process one image
@@ -29,7 +29,6 @@ def align_and_crop_one(arg=(None, False, None)):
     # Instantiate a face aligner object
     fa = FaceAligner(predictor, desiredFaceWidth=256)
 
-
     # Convert colored image into grayscale
     gray = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
     # detect the face in the image
@@ -39,7 +38,6 @@ def align_and_crop_one(arg=(None, False, None)):
         face_aligned = fa.align(im, gray, rects)  # align the face
 
         # cropping the image
-        # gray = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
         rects = detector(face_aligned, 2)
         if len(rects) > 0:
             rects = rects[0]
@@ -68,14 +66,6 @@ def align_and_crop_one(arg=(None, False, None)):
 
 # function to align faces and compute landmarks
 def align_and_crop(list_images, hist_eq=False, class_=0, flag="Training", root_path='', path_detector=None):
-
-    # if not path_detector:
-    #     path_detector = PATH_DETECTOR
-    # detector = dlib.get_frontal_face_detector()
-    # predictor = dlib.shape_predictor(path_detector)
-    # # Instantiate a face aligner object
-    # fa = FaceAligner(predictor, desiredFaceWidth=256)
-
 
     # converting image to 8-bit
     print('--------------Converting images----------------')

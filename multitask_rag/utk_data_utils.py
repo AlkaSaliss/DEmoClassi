@@ -1,7 +1,5 @@
 # Imports
 from torch.utils.data import DataLoader, Dataset
-from torchvision import datasets, transforms
-import numpy as np
 import os
 import glob
 import torch
@@ -50,7 +48,7 @@ class RagDataset(Dataset):
         image = self.transform(image).float()
 
         # In the utk face dataset, labels are contained in image names, for instance an image of age 23, black man
-        # is typically named as `root_dir/23_0_1_izudedhdjefedfuiedjk.jpg`
+        # is typically named as `root_dir/23_0_1_158478565845.jpg`
         labels = self.list_images[idx].split('/')[-1].split('_')
         age, gender, race = torch.tensor(float(labels[0])).float(),\
                             torch.tensor(int(labels[1])).long(),\
@@ -86,11 +84,13 @@ def split_utk(src_dir, dest_dir, train_split=0.7):
     # labels = [i + j + k for i, j, k in zip(age, gender, race)]
 
     train_images, val_images, train_labels, val_labels = train_test_split(list_images, labels,
-                                                                          test_size=1.0-train_split, stratify=labels)
-    val_images, test_images = train_test_split(val_images, test_size=0.5, stratify=val_labels)
+                                                                          test_size=1.0-train_split,
+                                                                          stratify=labels,
+                                                                          random_state=123)
+    val_images, test_images = train_test_split(val_images, test_size=0.5, stratify=val_labels, random_state=234)
 
-    def copy_images(dest_folder, list_images):
-        for f in tqdm.tqdm(list_images):
+    def copy_images(dest_folder, list_images_):
+        for f in tqdm.tqdm(list_images_):
             copy2(f, dest_folder)
 
     print('------------Copying train images-------------')
@@ -101,14 +101,7 @@ def split_utk(src_dir, dest_dir, train_split=0.7):
     copy_images(test_path, test_images)
 
 
-# Define the transforms for the training and validation sets
-BATCH_SIZE = 32
-# DATA_DIR = "..\\..\\UTKface_Aligned_cropped\\utk_data"
-DATA_DIR = "/media/sf_Documents/COMPUTER_VISION/UTKface_Aligned_cropped/utk_face_split"
-
-
-def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR, n_samples=None,
-                    resize=(224, 224), normalize=False, **split_args):
+def get_utk_dataloader(batch_size=256, data_dir=None, n_samples=None, data_transforms=None, flag='train', **split_args):
 
     """
     Utility function for creating train, validation and test data loaders
@@ -116,49 +109,18 @@ def get_dataloaders(batch_size=BATCH_SIZE, data_dir=DATA_DIR, n_samples=None,
     :param batch_size: int, size of batches
     :param data_dir: directory containing subdirectories `train` and `valid` and `test`
     :param n_samples: number of sample images to consider, useful for debugging with small subset
-    :param resize: optional tuple for resizing the images into a new shape
-    :param normalize: boolean, whether to normalize input images, useful when using pretrained models on imagenet
     :param split_args: kwargs as take by the function `split_utk()` defined above. This can be used to split the data
             into train, validation and test sets if this is not already done. In thsi case the argument `data_dir` is
             no longer needed as the data directory will be the dest_dir from `split_args`
     :return: train, valid and test dataloades
     """
 
-    class Identity(object):
-        def __call__(self, obj):
-            return obj
-
     if split_args.get('src_dir') and split_args.get('dest_dir') and split_args.get('train_split'):
         split_utk(split_args['src_dir'], split_args['dest_dir'], train_split=split_args['train_split'])
         data_dir = split_args['dest_dir']
 
-    data_transforms = {
-        'train': transforms.Compose([
-            # transforms.RandomRotation(15),
-            transforms.Resize(resize),
-            transforms.ToTensor(),
-
-        ] + [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) if normalize else Identity()]),
-        'valid': transforms.Compose([
-            transforms.Resize(resize),
-            transforms.ToTensor()
-        ] + [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) if normalize else Identity()]),
-        'test': transforms.Compose([
-            transforms.Resize(resize),
-            transforms.ToTensor()
-        ] + [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) if normalize else Identity()])
-    }
-
-    # Load the datasets with ImageFolder
-    image_datasets = {
-        x: RagDataset(os.path.join(data_dir, x), data_transforms[x], n_samples)
-        for x in ['train', 'valid', 'test']
-    }
-
-    # Using the image datasets and the transforms, define the dataloaders
-    dataloaders = {
-        x: DataLoader(image_datasets[x], batch_size=batch_size, num_workers=8, shuffle=True)
-        for x in ['train', 'valid', 'test']
-    }
+    image_dataset = RagDataset(os.path.join(data_dir, flag), data_transforms, n_samples)
+    shuffle = True if flag == 'train' else False
+    dataloaders = DataLoader(image_dataset, batch_size=batch_size, num_workers=8, shuffle=shuffle)
 
     return dataloaders

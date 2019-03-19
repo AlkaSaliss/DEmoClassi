@@ -1,6 +1,6 @@
 import argparse
 import pandas as pd
-from face_utils import align_and_crop, select_list_images, processing_time
+from .face_utils import align_and_crop, select_list_images, processing_time
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -13,8 +13,8 @@ def load_process_save_images(path_to_csv, class_, flag_, root_path, path_detecto
     print(res)
 
 
-ROOT_PATH = "..\\..\\fer2013\\processed_images"
-PATH_TO_CSV = "..\\..\\fer2013\\fer2013.csv"
+ROOT_PATH = "../../fer2013/processed_images"
+PATH_TO_CSV = "../../fer2013/fer2013.csv"
 CLASS_ = list(range(7))
 FLAGS = ['PublicTest', 'PrivateTest', "Training"]  # Training, PublicTest, PrivateTest
 

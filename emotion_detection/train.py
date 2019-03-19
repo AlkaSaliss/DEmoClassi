@@ -1,104 +1,194 @@
 # Import
-import sys
-sys.path.append('../')
-from vision_utils.custom_torch_utils import run
-from data import data_loader_lambda, BATCH_SIZE, DATA_DIR
-import argparse
+import os
+import torch
+import torch.nn.functional as F
+from custom_torch_utils import create_summary_writer
+from ignite.metrics import Loss, Accuracy
+from ignite.engine import create_supervised_evaluator, create_supervised_trainer
+from ignite.engine import Events
+from ignite.contrib.handlers.param_scheduler import LinearCyclicalScheduler
+from ignite import handlers
+import shutil
+import tqdm
+import glob
+import numpy as np
 
 
-# Define the constants/hyperparameters
-EPOCHS = 10
-CHECKPOINT = "../checkpoints"
-LOG_INTERVAL = 2  # default value for the number of iterations at which to print training loss
-FILE_NAME = 'resnet'  # default value of name under which to save the model file name
-PATH_TO_MODEL_SCRIPT = './model_configs/sep_conv.py'  # default script defining the pytorch model
+# variable to track validation loss and computing it separately for each handler (checkpoint, early stop, ...)
+val_loss = [np.inf]
 
 
-def main(args=None):
-    int2bool = {0: False, 1: True}
+def run_fer(model, optimizer, epochs, log_interval, dataloaders,
+            dirname='resnet_models', filename_prefix='resnet', n_saved=2,
+            log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10,
+            resume_model=None, resume_optimizer=None, backup_step=1, backup_path=None,
+            n_epochs_freeze=5, n_cycle=None, lr_after_freeze=1e-3,
+            lr_cycle_start=1e-4, lr_cycle_end=1e-1):
 
-    if args is None:
-        parser = argparse.ArgumentParser('Train a pytorch model')
-        parser.add_argument('--data_loader', type=str, default='get_dataloaders_fer48',
-                            help='name of the dataloader functions, current choices include get_dataloaders_fer48 and '
-                                 'get_dataloaders')
-        parser.add_argument('--resize', nargs='+', type=int, default=None,
-                            help='int or 2 or tuple of ints to resize the input image')
-        parser.add_argument('--to_rgb', type=int, default=0,
-                            help='whether (1) to convert gray to rgb (repeat the images 3 times) or not (0)')
-        parser.add_argument('--add_channel_dim', type=int, default=0,
-                            help='whether (1) to add a third channel dimension to the '
-                                 'array image (to get h*w*c) or not (0)')
-        parser.add_argument('--normalize', type=int, default=0,
-                            help='whether to normalize (1) or not (0), useful for imagenet pretrained models')
-        parser.add_argument('--hist_eq', type=int, default=1,
-                            help='whether to apply histogram equalization (1) or not (0)')
-        parser.add_argument('--chunksize', type=int, default=10000, help='chunksize for reading images from csv')
-        parser.add_argument('--batch_size', type=int, default=BATCH_SIZE,
-                            help='Batch size for train and validation data')
-        parser.add_argument('--path_to_model_script', type=str, default=PATH_TO_MODEL_SCRIPT,
-                            help='path to the script containing model and optimizer definition')
-        parser.add_argument('--epochs', type=int, default=EPOCHS, help='Number of training iterations')
-        parser.add_argument('--data_dir', type=str, default=DATA_DIR,
-                            help='root directory containing whether train and valid folders,'
-                                 ' or path to csv containing raw fer images pixels')
-        parser.add_argument('--checkpoint_dir', type=str, default=CHECKPOINT, help='folder to save checkpoints')
-        parser.add_argument('--log_interval', type=int, default=LOG_INTERVAL,
-                            help='Print metrics each log_interval iterations')
-        parser.add_argument('--file_name', type=str, default=FILE_NAME,
-                            help='filename under which to save the checkpoints')
-        parser.add_argument('--n_saved', type=int, default=2, help='Save the n_saved best models')
-        parser.add_argument('--log_dir', type=str, default='./', help='directory where to save tensorboard logs')
-        parser.add_argument('--patience', type=int, default=10,
-                            help='Patience in terms of number of epochs for early stopping')
-        parser.add_argument('--launch_tensorboard', type=int, default=0,
-                            help='whether to start tensorboard automatically (0) or not (1)')
-        parser.add_argument('--resume_model', type=str, default=None,
-                            help='if given, path to an old model checkpoint from which to restore weights')
-        parser.add_argument('--resume_optimizer', type=str, default=None,
-                            help='if given, path to an old optimizer checkpoint from which to restore state from a '
-                                 'previous run')
-        parser.add_argument('--backup_step', type=int, default=1,
-                            help='backup current checkpoints in a given directory every backup_step epochs')
-        parser.add_argument('--backup_path', type=str, default=None,
-                            help='path to folder where to backup current checkpoints, typically when training on'
-                                 'google colab this is a path to a folder in my google drive '
-                                 'so that I can periodically copy my model checkpoints to google drive')
-        parser.add_argument('--n_epochs_freeze', type=int, default=5,
-                            help='number of epochs after which to unfreeze the model parameters, useful for finetuning')
-        parser.add_argument('--n_cycle', type=int, default=5,
-                            help='number of epochs for which to complete a learning rate scheduling cycle')
-        parser.add_argument('--lr_after_freeze', type=int, default=1e-3,
-                            help='set new learning rate after unfreezing layers')
-        args = parser.parse_args()
+    """
+    Utility function to hide pytorch models training routine.
 
-    print('-----------Creating data loaders---------------------')
-    resize = None
-    # If the resize argument is provided as a single integer `n`, transform it in a tuple of form `(n, n)`
-    if args.resize:
-        resize = tuple([i for i in args.resize])
-        if len(resize) == 1:
-            resize = resize * 2
+    :param epochs: maximum number of epoch
+    :param log_interval: print training info each log_interval iterations
+    :param dataloaders: dictionary of data loaders objects, the keys are `Training` and `PublicTesting`
+    :param dirname:
+    :param filename_prefix:
+    :param n_saved:
+    :param log_dir:
+    :param launch_tensorboard:
+    :param patience:
+    :param resume_model:
+    :param resume_optimizer:
+    :param backup_step:
+    :param backup_path:
+    :return:
+    """
 
-    # Create the train and validation data loaders
-    dataloaders = data_loader_lambda[args.data_loader](batch_size=args.batch_size, data_dir=args.data_dir,
-                                                       add_channel_dim=int2bool[args.add_channel_dim],
-                                                       chunksize=args.chunksize, resize=resize,
-                                                       normalize=int2bool[args.normalize],
-                                                       to_rgb=int2bool[args.to_rgb],
-                                                       hist_eq=int2bool[args.hist_eq])
+    if launch_tensorboard:
+        os.makedirs(log_dir, exist_ok=True)
 
-    print('--------------------print start training--------------------')
-    # Train the model and save checkpoints
-    run(args.path_to_model_script, epochs=args.epochs, log_interval=args.log_interval,
-        dataloaders=dataloaders, dirname=args.checkpoint_dir, filename_prefix=args.file_name,
-        n_saved=args.n_saved, log_dir=args.log_dir,
-        launch_tensorboard=int2bool[args.launch_tensorboard], patience=args.patience,
-        resume_model=args.resume_model, resume_optimizer=args.resume_optimizer,
-        backup_step=args.backup_step, backup_path=args.backup_path,
-        n_epochs_freeze=args.n_epochs_freeze, n_cycle=args.n_cycle,
-        lr_after_freeze=args.lr_after_freeze)
+    if resume_model:
+        model.load_state_dict(torch.load(resume_model))
+    if resume_optimizer:
+        optimizer.load_state_dict(torch.load(resume_optimizer))
+        for state in optimizer.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.cuda()
+    train_loader, val_loader = dataloaders['train'], dataloaders['valid']
 
+    if launch_tensorboard:
+        writer, val_writer = create_summary_writer(model, train_loader, log_dir)
 
-if __name__ == '__main__':
-    main()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    # variable that stores val loss
+    trainer = create_supervised_trainer(model, optimizer, F.cross_entropy, device=device)
+    evaluator = create_supervised_evaluator(model,
+                                            metrics={'accuracy': Accuracy(),
+                                                     'nll': Loss(F.cross_entropy)},
+                                            device=device)
+
+    # function to schedule learning rate if needed
+    @trainer.on(Events.EPOCH_STARTED)
+    def schedule_learning_rate(engine):
+        if engine.state.epoch > n_epochs_freeze and n_cycle not in [None, 0]\
+                and not getattr(trainer, 'scheduler_set', False):
+            scheduler = LinearCyclicalScheduler(optimizer, 'lr', lr_cycle_start,
+                                                lr_cycle_end, len(train_loader)*n_cycle)
+            trainer.add_event_handler(Events.ITERATION_STARTED, scheduler)
+            setattr(trainer, 'scheduler_set', True)
+
+    desc = "ITERATION - loss: {:.3f}"
+    pbar = tqdm.tqdm(
+        initial=0, leave=False, total=len(train_loader),
+        desc=desc.format(0)
+    )
+
+    @trainer.on(Events.ITERATION_COMPLETED)
+    def log_training_loss(engine):
+        iter_ = (engine.state.iteration - 1) % len(train_loader) + 1
+
+        if iter_ % log_interval == 0:
+            pbar.desc = desc.format(engine.state.output)
+            pbar.update(log_interval)
+
+        if launch_tensorboard:
+            writer.add_scalar('training/loss', engine.state.output, engine.state.iteration)
+
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def log_training_results(engine):
+        pbar.refresh()
+        evaluator.run(train_loader)
+        metrics = evaluator.state.metrics
+        avg_accuracy = metrics['accuracy']
+        avg_nll = metrics['nll']
+        tqdm.tqdm.write(
+            "Training Results - Epoch: {}  Avg accuracy: {:.3f} Avg loss: {:.3f}"
+            .format(engine.state.epoch, avg_accuracy, avg_nll)
+        )
+
+        if launch_tensorboard:
+            writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
+            writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
+
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def log_validation_results(engine):
+
+        evaluator.run(val_loader)
+        metrics = evaluator.state.metrics
+        avg_accuracy = metrics['accuracy']
+        avg_nll = metrics['nll']
+        tqdm.tqdm.write(
+            "Validation Results - Epoch: {}  Avg accuracy: {:.3f} Avg loss: {:.3f}"
+            .format(engine.state.epoch, avg_accuracy, avg_nll))
+
+        pbar.n = pbar.last_print_n = 0
+
+        global val_loss
+        val_loss.append(avg_nll)
+
+        if launch_tensorboard:
+            val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
+            val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
+
+    @trainer.on(Events.EPOCH_STARTED)
+    def unfreeze(engine):
+        if engine.state.epoch == n_epochs_freeze:
+            for param in model.parameters():
+                if not param.requires_grad:
+                    param.requires_grad = True
+                    optimizer.add_param_group(
+                        {'params': param, "lr": lr_after_freeze}
+                    )
+
+    def get_val_loss(_):
+        global val_loss
+        return -val_loss[-1]
+
+    checkpointer = handlers.ModelCheckpoint(dirname=dirname, filename_prefix=filename_prefix,
+                                            score_function=get_val_loss,
+                                            score_name='val_loss',
+                                            n_saved=n_saved, create_dir=True,
+                                            require_empty=False, save_as_state_dict=True
+                                            )
+    earlystop = handlers.EarlyStopping(patience, get_val_loss, trainer)
+
+    evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
+                                {'optimizer': optimizer, 'model': model})
+    evaluator.add_event_handler(Events.EPOCH_COMPLETED, earlystop)
+
+    # optimizer and model that are in the gdrive, created from a previous run
+    if backup_path is not None:
+        original_files = glob.glob(os.path.join(backup_path, '*.pth*'))
+
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def backup_checkpoints(engine):
+        if backup_path is not None:
+            if engine.state.epoch % backup_step == 0:
+
+                # get old model and optimizer files paths so that we can remove them after copying the newer ones
+                old_files = glob.glob(os.path.join(backup_path, '*.pth'))
+
+                # get new model and optimizer checkpoints
+                new_files = glob.glob(os.path.join(dirname, '*.pth*'))
+                if len(new_files) > 0:  # copy new checkpoints from local checkpoint folder to the backup_path folder
+                    for f_ in new_files:
+                        shutil.copy2(f_, backup_path)
+
+                    if len(old_files) > 0:  # remove older checkpoints as the new ones have been copied
+                        for f_ in old_files:
+                            if f_ not in original_files:
+                                os.remove(f_)
+
+    if launch_tensorboard:
+        @trainer.on(Events.EPOCH_COMPLETED)
+        def add_histograms(engine):
+            for name, param in model.named_parameters():
+                writer.add_histogram(name, param.clone().cpu().data.numpy(), engine.state.epoch)
+
+    trainer.run(train_loader, max_epochs=epochs)
+    pbar.close()
+    if launch_tensorboard:
+        writer.close()
+        val_writer.close()

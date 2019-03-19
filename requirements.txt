@@ -5,3 +5,5 @@ imutils
 dlib
 kaggle
 tensorboardX
+tqdm
+pillow

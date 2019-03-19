@@ -1,7 +1,6 @@
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from ignite.contrib.handlers import CosineAnnealingScheduler
 
 
 class SeparableConv(torch.nn.Module):
@@ -113,4 +112,4 @@ my_model = SepConvModel()
 # Define the optimizer
 optimizer = optim.SGD(my_model.parameters(), lr=1e-3)
 
-lr_schedulers = [CosineAnnealingScheduler(optimizer, 'lr', 1e-2, 1e-5, 10)]
+# lr_schedulers = [CosineAnnealingScheduler(optimizer, 'lr', 1e-2, 1e-5, 10)]

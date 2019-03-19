@@ -1,9 +1,7 @@
-import sys
-sys.path.append('../../vision_utils')
 import torch.nn.functional as F
 import torch.nn as nn
 import torch.optim as optim
-from custom_torch_utils import initialize_model
+from vision_utils.custom_torch_utils import initialize_model
 
 
 class ConvModel(nn.Module):

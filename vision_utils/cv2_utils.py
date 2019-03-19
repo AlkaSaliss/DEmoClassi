@@ -25,7 +25,7 @@ if __name__ == '__main__':
         # if faces found
         if len(rects) > 0:
             for rect in rects:
-                # get ad plot bounding box for each face
+                # get and plot bounding box for each face
                 (bX, bY, bW, bH) = face_utils.rect_to_bb(rect)
                 cv2.rectangle(frame, (bX, bY), (bX + bW, bY + bH), (0, 0, 255), 1)
             # Show the frame with the bounding boxes
