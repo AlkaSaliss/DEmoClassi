@@ -2,7 +2,7 @@
 import os
 import torch
 import torch.nn.functional as F
-from custom_torch_utils import create_summary_writer
+from vision_utils.custom_torch_utils import create_summary_writer
 from ignite.metrics import Loss, Accuracy
 from ignite.engine import create_supervised_evaluator, create_supervised_trainer
 from ignite.engine import Events

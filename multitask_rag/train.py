@@ -1,5 +1,4 @@
 # Import
-from __future__ import division
 from vision_utils.custom_torch_utils import create_summary_writer
 from vision_utils.custom_torch_utils import create_supervised_trainer_multitask, create_supervised_evaluator_multitask
 from vision_utils.custom_torch_utils import my_multi_task_loss, MutliTaskLoss, MultiTaskAccuracy
