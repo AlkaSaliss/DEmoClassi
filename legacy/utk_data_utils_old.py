@@ -1,5 +1,6 @@
 # Imports
 from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
 import os
 import glob
 import torch
@@ -20,7 +21,7 @@ class RagDataset(Dataset):
         Custom pytorch dataset class for loding utk face images along with labels : age, gender  and race
 
         :param root_dir: root folder containing the raw images
-        :param transform: torchvision `transforms.Compose` object containing transformation to be applied to images
+        :param transform: pytorch transforms to apply to the raw images
         :param n_samples: int, number of images samples to consider, useful for taking a small subset for debugging
         """
 
@@ -84,10 +85,8 @@ def split_utk(src_dir, dest_dir, train_split=0.7):
     # labels = [i + j + k for i, j, k in zip(age, gender, race)]
 
     train_images, val_images, train_labels, val_labels = train_test_split(list_images, labels,
-                                                                          test_size=1.0-train_split,
-                                                                          stratify=labels,
-                                                                          random_state=123)
-    val_images, test_images = train_test_split(val_images, test_size=0.5, stratify=val_labels, random_state=234)
+                                                                          test_size=1.0-train_split, stratify=labels)
+    val_images, test_images = train_test_split(val_images, test_size=0.5, stratify=val_labels)
 
     def copy_images(dest_folder, list_images_):
         for f in tqdm.tqdm(list_images_):
@@ -101,7 +100,12 @@ def split_utk(src_dir, dest_dir, train_split=0.7):
     copy_images(test_path, test_images)
 
 
-def get_utk_dataloader(batch_size=256, data_dir=None, n_samples=None, data_transforms=None, flag='train', **split_args):
+# Define the transforms for the training and validation sets
+BATCH_SIZE = 32
+DATA_DIR = "/media/sf_Documents/COMPUTER_VISION/UTKface_Aligned_cropped/utk_face_split"
+
+
+def get_utk_dataloader(batch_size=256, data_dir=None, n_samples=None, data_transforms=None, **split_args):
 
     """
     Utility function for creating train, validation and test data loaders
@@ -109,21 +113,47 @@ def get_utk_dataloader(batch_size=256, data_dir=None, n_samples=None, data_trans
     :param batch_size: int, size of batches
     :param data_dir: directory containing subdirectories `train` and `valid` and `test`
     :param n_samples: number of sample images to consider, useful for debugging with small subset
-    :param data_transforms: torchvision `transforms.Compose` object containing transformation to be applied to images
-    :param flag: string representing the set to be loaded among : `train`, `valid` and `test`
     :param split_args: kwargs as take by the function `split_utk()` defined above. This can be used to split the data
             into train, validation and test sets if this is not already done. In thsi case the argument `data_dir` is
             no longer needed as the data directory will be the dest_dir from `split_args`
-    :return: pytorch `DataLoader` object to iterate through and get batches
+    :return: train, valid and test dataloades
     """
 
-    # if relevant split the image data into train, validation and test set
+    class Identity(object):
+        def __call__(self, obj):
+            return obj
+
     if split_args.get('src_dir') and split_args.get('dest_dir') and split_args.get('train_split'):
         split_utk(split_args['src_dir'], split_args['dest_dir'], train_split=split_args['train_split'])
         data_dir = split_args['dest_dir']
 
-    image_dataset = RagDataset(os.path.join(data_dir, flag), data_transforms, n_samples)
-    shuffle = True if flag == 'train' else False
-    dataloaders = DataLoader(image_dataset, batch_size=batch_size, num_workers=8, shuffle=shuffle)
+    data_transforms = {
+        'train': transforms.Compose([
+            # transforms.RandomRotation(15),
+            transforms.Resize(resize),
+            transforms.ToTensor(),
+
+        ] + [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) if normalize else Identity()]),
+        'valid': transforms.Compose([
+            transforms.Resize(resize),
+            transforms.ToTensor()
+        ] + [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) if normalize else Identity()]),
+        'test': transforms.Compose([
+            transforms.Resize(resize),
+            transforms.ToTensor()
+        ] + [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) if normalize else Identity()])
+    }
+
+    # Load the datasets with ImageFolder
+    image_datasets = {
+        x: RagDataset(os.path.join(data_dir, x), data_transforms[x], n_samples)
+        for x in ['train', 'valid', 'test']
+    }
+
+    # Using the image datasets and the transforms, define the dataloaders
+    dataloaders = {
+        x: DataLoader(image_datasets[x], batch_size=batch_size, num_workers=8, shuffle=True)
+        for x in ['train', 'valid', 'test']
+    }
 
     return dataloaders

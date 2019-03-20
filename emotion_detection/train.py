@@ -26,27 +26,41 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
             lr_cycle_start=1e-4, lr_cycle_end=1e-1):
 
     """
-    Utility function to hide pytorch models training routine.
+    Utility function that encapsulates pytorch models training routine.
 
-    :param epochs: maximum number of epoch
-    :param log_interval: print training info each log_interval iterations
-    :param dataloaders: dictionary of data loaders objects, the keys are `Training` and `PublicTesting`
-    :param dirname:
-    :param filename_prefix:
-    :param n_saved:
-    :param log_dir:
-    :param launch_tensorboard:
-    :param patience:
-    :param resume_model:
-    :param resume_optimizer:
-    :param backup_step:
-    :param backup_path:
+    :param model: pytorch model to be trained
+    :param optimizer: pytorch optimizer that updates the `model`'s parameters
+    :param epochs: maximum number of epoch to train for
+    :param log_interval: print training loss each `log_interval` iterations during training
+    :param dataloaders: dictionary with `train` and `valid` as keys, the corresponding values being resp. train
+            and validation pytorch `DataLoader` objects
+    :param dirname: path to the directory where to save model checkpoints during training
+    :param filename_prefix: string, name under which to save the model checkpoint file
+    :param n_saved: int, save n_saved best model during training
+    :param log_dir: optional path to a directory where to write tensorboard logs
+    :param launch_tensorboard: boolean, whether to write metrics and histograms using tensorboard
+    :param patience: int, number of epochs to wait for before stopping training if no improvement is recorded
+    :param resume_model: optional path to checkpoint of trained model to load weights from and continue training
+    :param resume_optimizer: optional path to a previous optimizer checkpoint to load state_dict from
+    :param backup_step: optional, copy the model checkpoints from `dirname` each `backup_step` epochs,
+                        This is useful for me in situation where I train on google colab and want backup my checkpoints
+                        to my google drive
+    :param backup_path: optional path to backup (copy) model checkpoints to, each `backup_step` epochs.
+    :param n_epochs_freeze: after `n_epochs_freeze` unfreeze the model's frozen layers,
+                            useful when doing transfer learning
+    :param n_cycle: optional int, in terms of number of epochs, to be used for cycle size when doing learning rate
+                    scheduling
+    :param lr_after_freeze: float, the new learning rate to set after unfreezing the model's layer for finetuning
+    :param lr_cycle_start: starting value for learning rate when doing learning rate scheduling
+    :param lr_cycle_end: end value for learning rate when doing learning rate scheduling
     :return:
     """
 
+    # create the tensorboard log directory if relevant
     if launch_tensorboard:
         os.makedirs(log_dir, exist_ok=True)
 
+    # In case a path of previous model and optimizer checkpoints are provided load weights and state from them
     if resume_model:
         model.load_state_dict(torch.load(resume_model))
     if resume_optimizer:
@@ -55,14 +69,17 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
             for k, v in state.items():
                 if torch.is_tensor(v):
                     state[k] = v.cuda()
+
+    # Get the training and validation data loaders
     train_loader, val_loader = dataloaders['train'], dataloaders['valid']
 
+    # create tensorboard writers
     if launch_tensorboard:
         writer, val_writer = create_summary_writer(model, train_loader, log_dir)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # variable that stores val loss
+    # create trainer and evaluator engines that handle model training and evaluation resp.
     trainer = create_supervised_trainer(model, optimizer, F.cross_entropy, device=device)
     evaluator = create_supervised_evaluator(model,
                                             metrics={'accuracy': Accuracy(),
@@ -79,6 +96,7 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
             trainer.add_event_handler(Events.ITERATION_STARTED, scheduler)
             setattr(trainer, 'scheduler_set', True)
 
+    # functions to write metrics during training
     desc = "ITERATION - loss: {:.3f}"
     pbar = tqdm.tqdm(
         initial=0, leave=False, total=len(train_loader),
@@ -132,6 +150,7 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
             val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
             val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
 
+    # Utility function for unfreezing frozen layer for finetuning
     @trainer.on(Events.EPOCH_STARTED)
     def unfreeze(engine):
         if engine.state.epoch == n_epochs_freeze:
@@ -142,26 +161,30 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
                         {'params': param, "lr": lr_after_freeze}
                     )
 
+    # Function that returns the negative validation loss, useful for saving the best checkpoint at each epoch
     def get_val_loss(_):
         global val_loss
         return -val_loss[-1]
 
+    # callback to save the best model during training
     checkpointer = handlers.ModelCheckpoint(dirname=dirname, filename_prefix=filename_prefix,
                                             score_function=get_val_loss,
                                             score_name='val_loss',
                                             n_saved=n_saved, create_dir=True,
                                             require_empty=False, save_as_state_dict=True
                                             )
+    # callback to stop training if no improvement is observed
     earlystop = handlers.EarlyStopping(patience, get_val_loss, trainer)
 
     evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
                                 {'optimizer': optimizer, 'model': model})
     evaluator.add_event_handler(Events.EPOCH_COMPLETED, earlystop)
 
-    # optimizer and model that are in the gdrive, created from a previous run
+    # optimizer and model that are in the backup_path, created from a previous run
     if backup_path is not None:
         original_files = glob.glob(os.path.join(backup_path, '*.pth*'))
 
+    # utility function to periodically copy best model to `backup_path` folder
     @trainer.on(Events.EPOCH_COMPLETED)
     def backup_checkpoints(engine):
         if backup_path is not None:

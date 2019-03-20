@@ -19,36 +19,54 @@ class SeparableConvLayer(torch.nn.Module):
 
 
 class SepConvModel(torch.nn.Module):
+    """ Implementation of CNN based on depthwise separable convolution layer """
 
-    def __init__(self, dropout=0.7, n_class=7, n_filters=[64, 128, 256, 512]):
+    def __init__(self, dropout=0.7, n_class=7, n_channels=1, n_filters=[64, 128, 256, 512], kernels_size=[3, 3, 3, 3]):
+        """
+        The model consists of 4 CNN blocks. Each i-th block is a set of 2 depthwise separable conv layers.
+         Each layer in the i-th block has kernel size given by the i-th element from `kernels_size` parameter,
+         and a number of output channels given by the i-th element from `n_filters` parameter.
+
+        :param dropout: float between 0 and 1 for the dropout rate
+        :param n_class: number of classes <==> output shape
+        :param n_channels: input image number of channels, e.g. 3 for RGB and 1 for grayscale
+        :param n_filters: list of ints, each i-th element is the number of output channels for the conv layers
+                of i-th conv block
+        :param kernels_size: list of ints, each i-th element is the kernel size for the conv layers
+                of i-th conv block
+
+        """
+
         super(SepConvModel, self).__init__()
 
         self.dropout = dropout
         self.n_class = n_class
         self.n_filters = n_filters
+        self.kernels_size = kernels_size
+        self.n_channels = n_channels
 
         # 1st block
-        self.conv1 = SeparableConvLayer(1, self.n_filters[0])
+        self.conv1 = SeparableConvLayer(self.n_channels, self.n_filters[0], self.kernels_size[0])
         self.batchnorm1 = torch.nn.BatchNorm2d(self.n_filters[0])
-        self.conv2 = SeparableConvLayer(self.n_filters[0], self.n_filters[0])
+        self.conv2 = SeparableConvLayer(self.n_filters[0], self.n_filters[0], self.kernels_size[0])
         self.batchnorm2 = torch.nn.BatchNorm2d(self.n_filters[0])
 
         # 2nd block
-        self.conv3 = SeparableConvLayer(self.n_filters[0], self.n_filters[1])
+        self.conv3 = SeparableConvLayer(self.n_filters[0], self.n_filters[1], self.kernels_size[1])
         self.batchnorm3 = torch.nn.BatchNorm2d(self.n_filters[1])
-        self.conv4 = SeparableConvLayer(self.n_filters[1], self.n_filters[1])
+        self.conv4 = SeparableConvLayer(self.n_filters[1], self.n_filters[1], self.kernels_size[1])
         self.batchnorm4 = torch.nn.BatchNorm2d(self.n_filters[1])
 
         # 3rd block
-        self.conv5 = SeparableConvLayer(self.n_filters[1], self.n_filters[2])
+        self.conv5 = SeparableConvLayer(self.n_filters[1], self.n_filters[2], self.kernels_size[2])
         self.batchnorm5 = torch.nn.BatchNorm2d(self.n_filters[2])
-        self.conv6 = SeparableConvLayer(self.n_filters[2], self.n_filters[2])
+        self.conv6 = SeparableConvLayer(self.n_filters[2], self.n_filters[2], self.kernels_size[2])
         self.batchnorm6 = torch.nn.BatchNorm2d(self.n_filters[2])
 
         # 4th block
-        self.conv7 = SeparableConvLayer(self.n_filters[2], self.n_filters[3])
+        self.conv7 = SeparableConvLayer(self.n_filters[2], self.n_filters[3], self.kernels_size[3])
         self.batchnorm7 = torch.nn.BatchNorm2d(self.n_filters[3])
-        self.conv8 = SeparableConvLayer(self.n_filters[3], self.n_filters[3])
+        self.conv8 = SeparableConvLayer(self.n_filters[3], self.n_filters[3], self.kernels_size[3])
         self.batchnorm8 = torch.nn.BatchNorm2d(self.n_filters[3])
 
         self.avg_pool = torch.nn.AdaptiveAvgPool2d((1, 1))
@@ -107,99 +125,51 @@ class SepConvModel(torch.nn.Module):
         return x
 
 
-class SepConvModelMT(torch.nn.Module):
-
-    def __init__(self, dropout=0.5, n_filters=[64, 128, 256, 512]):
-        super(SepConvModelMT, self).__init__()
-
-        self.dropout = dropout
-        self.n_filters = n_filters
-
-        # 1st block
-        self.conv1 = SeparableConvLayer(3, self.n_filters[0])
-        self.batchnorm1 = torch.nn.BatchNorm2d(self.n_filters[0])
-        self.conv2 = SeparableConvLayer(self.n_filters[0], self.n_filters[0])
-        self.batchnorm2 = torch.nn.BatchNorm2d(self.n_filters[0])
-
-        # 2nd block
-        self.conv3 = SeparableConvLayer(self.n_filters[0], self.n_filters[1])
-        self.batchnorm3 = torch.nn.BatchNorm2d(self.n_filters[1])
-        self.conv4 = SeparableConvLayer(self.n_filters[1], self.n_filters[1])
-        self.batchnorm4 = torch.nn.BatchNorm2d(self.n_filters[1])
-
-        # 3rd block
-        self.conv5 = SeparableConvLayer(self.n_filters[1], self.n_filters[2])
-        self.batchnorm5 = torch.nn.BatchNorm2d(self.n_filters[2])
-        self.conv6 = SeparableConvLayer(self.n_filters[2], self.n_filters[2])
-        self.batchnorm6 = torch.nn.BatchNorm2d(self.n_filters[2])
-
-        # 4th block
-        self.conv7 = SeparableConvLayer(self.n_filters[2], self.n_filters[3])
-        self.batchnorm7 = torch.nn.BatchNorm2d(self.n_filters[3])
-        self.conv8 = SeparableConvLayer(self.n_filters[3], self.n_filters[3])
-        self.batchnorm8 = torch.nn.BatchNorm2d(self.n_filters[3])
-
-        self.avg_pool = torch.nn.AdaptiveAvgPool2d((1, 1))
-
-        # 1st fc block
-        self.fc1 = torch.nn.Linear(self.n_filters[3], 256)
-        self.batchnorm9 = torch.nn.BatchNorm1d(256)
-
-        # self.fc2 = torch.nn.Linear(256, self.n_class)
-        # # 2nd fc block
-        self.fc2 = torch.nn.Linear(256, 128)
-        self.batchnorm10 = torch.nn.BatchNorm1d(128)
-
-        # output block
-        self.output_age = torch.nn.Linear(128, 1)
-        self.output_gender = torch.nn.Linear(128, 2)
-        self.output_race = torch.nn.Linear(128, 5)
+class Identity(nn.Module):
+    def __init__(self):
+        super(Identity, self).__init__()
 
     def forward(self, x):
-        # 1st block
-        x = self.conv1(x)
-        x = F.relu(self.batchnorm1(x))
-        x = self.conv2(x)
-        x = F.relu(self.batchnorm2(x))
-        x = F.max_pool2d(x, 2)
+        return x
 
-        # 2nd block
-        x = self.conv3(x)
-        x = F.relu(self.batchnorm3(x))
-        x = self.conv4(x)
-        x = F.relu(self.batchnorm4(x))
-        x = F.max_pool2d(x, 2)
 
-        x = F.dropout(x, self.dropout)
+class SepConvModelMT(nn.Module):
+    """ Implementation of CNN based on depthwise separable convolution layer """
+    def __init__(self, dropout=0.7, n_class=[1, 2, 5], n_channels=1,
+                 n_filters=[64, 128, 256, 512], kernels_size=[3, 3, 3, 3]):
+        """
+        The model consists of 4 CNN blocks. Each i-th block is a set of 2 depthwise separable conv layers.
+         Each layer in the i-th block has kernel size given by the i-th element from `kernels_size` parameter,
+         and a number of output channels given by the i-th element from `n_filters` parameter.
 
-        # 3rd block
-        x = self.conv5(x)
-        x = F.relu(self.batchnorm5(x))
-        x = self.conv6(x)
-        x = F.relu(self.batchnorm6(x))
-        # x = F.max_pool2d(x, 2)
+        :param dropout: float between 0 and 1 for the dropout rate
+        :param n_class: number of classes <==> output shape
+        :param n_channels: input image number of channels, e.g. 3 for RGB and 1 for grayscale
+        :param n_filters: list of ints, each i-th element is the number of output channels for the conv layers
+                of i-th conv block
+        :param kernels_size: list of ints, each i-th element is the kernel size for the conv layers
+                of i-th conv block
 
-        # 4th block
-        x = self.conv7(x)
-        x = F.relu(self.batchnorm7(x))
-        x = self.conv8(x)
-        x = F.relu(self.batchnorm8(x))
-        # x = F.max_pool2d(x, 2)
+        """
 
-        x = self.avg_pool(x)
-        x = F.dropout(x.view(-1, x.size()[1]), self.dropout)
+        super(SepConvModelMT, self).__init__()
 
-        x = F.relu(self.batchnorm9(self.fc1(x)))
+        self.n_class = n_class
+        self.conv_base = SepConvModel(dropout=dropout, n_class=1, n_channels=n_channels,
+                                      n_filters=n_filters, kernels_size=kernels_size)
 
-        x = F.dropout(x, self.dropout)
+        self.conv_base.fc3 = Identity()
 
-        x = F.relu(self.batchnorm10(self.fc2(x)))
-        x = F.dropout(x, self.dropout)
-        #
+        self.output_age = nn.Linear(128, self.n_class[0])
+        self.output_gender = nn.Linear(128, self.n_class[0])
+        self.output_race = nn.Linear(128, self.n_class[0])
+
+    def forward(self, x):
+        x = self.conv_base(x)
         age = self.output_age(x)
         gender = self.output_gender(x)
         race = self.output_race(x)
-        #
+
         return age, gender, race
 
 

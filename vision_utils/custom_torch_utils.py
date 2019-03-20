@@ -1,5 +1,4 @@
 # Imports
-from __future__ import division
 import torch
 import torch.nn as nn
 from torchvision import models
@@ -383,6 +382,17 @@ def create_summary_writer(model, data_loader, log_dir):
 
 
 def plot_confusion_matrix(y_true, y_pred, title='Confusion matrix', labels_=None, target_names=None, normalize=False):
+    """
+    Utility function for plotting confusion matrix for classification evaluation
+
+    :param y_true: true labels array
+    :param y_pred: predicted labels array
+    :param title: Title of the confusion matrix plot
+    :param labels_: list of unique labels (e.g. in classification with two classes it could be [0, 1)
+    :param target_names: names list for unique labels (e.g. in two classes classification it can be ['male', 'female'])
+    :param normalize: boolean, whether to print number in confusion matrix as percentage or not
+    :return:
+    """
 
     # print classification report
     print(classification_report(y_true, y_pred, labels=labels_, target_names=target_names))

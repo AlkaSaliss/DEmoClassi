@@ -8,7 +8,7 @@ setuptools.setup(
     version='0.2.0',
     author='A. Alka M. Salissou',
     author_email='alkasalissou@hotmail.com',
-    packages=setuptools.find_packages(),
+    packages=setuptools.find_packages(exclude='legacy'),
     url='https://github.com/AlkaSaliss/DEmoClassi',
     license='LICENSE',
     description='Collection of my python functions for training pytorch models to classify emotion, age, race, gender',

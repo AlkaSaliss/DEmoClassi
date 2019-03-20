@@ -20,9 +20,9 @@ class FerDataset(Dataset):
         """
 
         :param data_dir: path to the csv file containing the data
-        :param flag: string indicating which slice of data to load. IN the fer csv file, there are 3 sets of data:
+        :param flag: string indicating which slice of data to load. In the fer csv file, there are 3 sets of data:
                 `Training`, `PublicTest`, `PrivateTest`
-        :param transform: pytorch transform to apply to the image
+        :param transform: torchvision `transforms.Compose` object containing transformation to be applied to images
         """
 
         self.data = self._read_csv(data_dir, flag)
@@ -39,7 +39,7 @@ class FerDataset(Dataset):
         """
 
         :param idx: retrieve the image and label at position `idx`
-        :return: 2 pytorch tensors representing th eimage and the label resp.
+        :return: 2 pytorch tensors representing the image and the label resp.
         """
 
         im = np.array([
@@ -63,6 +63,19 @@ class FerDataset(Dataset):
 
 def get_fer_dataloader(batch_size=256, data_dir='./fer2013.csv', flag='Training', from_csv=True,
                        data_transforms=None):
+
+    """
+    Utility function to create a pytorch `DataLoader` to use for training
+
+    :param batch_size: int representing the size of data batches
+    :param data_dir: directory containing the data, the data could either be the path to the raw csv file,
+            or a directory containing 3 subdirectories : `Training`, `PublicTest` and `PrivateTest`, each containing
+            resp. train, validation and test image files.
+    :param flag: string representing the set to be loaded among : `Training`, `PublicTest` and `PrivateTest`
+    :param from_csv: boolean telling wether the data are from the raw csv file, or from image files
+    :param data_transforms: torchvision `transforms.Compose` object containing transformation to be applied to images
+    :return: pytorch `DataLoader` object to iterate through and get batches
+    """
 
     if from_csv:
         image_dataset = FerDataset(data_dir, flag, data_transforms)

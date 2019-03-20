@@ -5,14 +5,26 @@ import numpy as np
 from vision_utils.custom_torch_utils import plot_confusion_matrix
 
 
-my_labels = [[0, 1], [0, 1, 2, 3, 4]]
-my_target_names = [['Male', 'Female'], ['White', 'Black', 'Asian', 'Indian', 'Unknown']]
-
-
 def evaluate_model(model, dataloader,
                    title='Confusion matrix',
-                   labels_=my_labels, target_names=my_target_names,
+                   labels_=[[0, 1], [0, 1, 2, 3, 4]],
+                   target_names=[['Male', 'Female'], ['White', 'Black', 'Asian', 'Indian', 'Unknown']],
                    normalize=False):
+    """
+        Function for evaluating a classification model by printing/plotting classification report and confusion matrix
+
+        :param model: a pytorch trained model
+        :param dataloader: a pytorch DataLoader object, or any object that yields pytorch tensors
+                ready to be used by the model
+        :param title: a string to be used as the plot title
+        :param labels_: list  of lists , each sublist is a list of integers (0 to number of classes - 1) representing
+                        labels for an output from the model
+        :param target_names: list of lists, each sublist is a list of strings or ints that describe the labels,
+                            and must have the same length as the corresponding labels it describes from `labels`list
+        :param normalize: whether to show the actual values or in % for the confusion matrix
+        :return:
+        """
+
     y_age = []
     y_gender = []
     y_race = []
