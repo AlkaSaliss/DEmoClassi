@@ -211,6 +211,14 @@ def run_utk(model, optimizer, epochs, log_interval, dataloaders,
                             if f_ not in original_files:
                                 os.remove(f_)
 
+    @trainer.on(Events.COMPLETED)
+    def final_backup(_):
+        if backup_path is not None:
+            new_files = glob.glob(os.path.join(dirname, '*.pth*'))
+            if len(new_files) > 0:
+                for f_ in new_files:
+                    shutil.copy2(f_, backup_path)
+
     if launch_tensorboard:
         @trainer.on(Events.EPOCH_COMPLETED)
         def add_histograms(engine):
