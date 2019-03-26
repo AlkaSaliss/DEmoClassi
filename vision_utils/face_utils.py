@@ -105,13 +105,3 @@ def select_list_images(df, class_, flag):
     res = list(df[(df['emotion'] == class_) & (df['Usage'] == flag)]['pixels'].values)
     return [extract_pixels(item) for item in res]
 
-
-def processing_time(func):
-    def func_wrapper(*args, **kwargs):
-        start = time.time()
-        func(*args, **kwargs)
-        seconds = time.time() - start
-        m, s = divmod(seconds, 60)
-        h, m = divmod(m, 60)
-        print("The execution took {} hours | {} minutes | {} seconds!".format(h, m, s))
-    return func_wrapper

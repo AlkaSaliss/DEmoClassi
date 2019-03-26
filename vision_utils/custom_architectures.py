@@ -39,7 +39,7 @@ class SepConvModel(torch.nn.Module):
 
         super(SepConvModel, self).__init__()
 
-        self.dropout = dropout
+        self.dropout = torch.nn.Dropout(dropout)
         self.n_class = n_class
         self.n_filters = n_filters
         self.kernels_size = kernels_size
@@ -97,7 +97,7 @@ class SepConvModel(torch.nn.Module):
         x = self.batchnorm4(F.relu(x))
         x = F.max_pool2d(x, 2)
 
-        x = F.dropout(x, self.dropout)
+        x = self.dropout(x)
 
         # 3rd block
         x = self.conv5(x)
@@ -112,13 +112,13 @@ class SepConvModel(torch.nn.Module):
         x = self.batchnorm8(F.relu(x))
 
         x = self.avg_pool(x)
-        x = F.dropout(x.view(-1, x.size()[1]), self.dropout)
+        x = self.dropout(x.view(-1, x.size()[1]))
 
         x = self.batchnorm9(F.relu(self.fc1(x)))
-        x = F.dropout(x, self.dropout)
+        x = self.dropout(x)
 
         x = self.batchnorm10(F.relu(self.fc2(x)))
-        x = F.dropout(x, self.dropout)
+        x = self.dropout(x)
         #
         x = self.fc3(x)
         #
@@ -135,7 +135,7 @@ class Identity(nn.Module):
 
 class SepConvModelMT(nn.Module):
     """ Implementation of CNN based on depthwise separable convolution layer """
-    def __init__(self, dropout=0.7, n_class=[1, 2, 5], n_channels=1,
+    def __init__(self, dropout=0.7, n_class=[1, 2, 5], n_channels=3,
                  n_filters=[64, 128, 256, 512], kernels_size=[3, 3, 3, 3]):
         """
         The model consists of 4 CNN blocks. Each i-th block is a set of 2 depthwise separable conv layers.
@@ -161,8 +161,8 @@ class SepConvModelMT(nn.Module):
         self.conv_base.fc3 = Identity()
 
         self.output_age = nn.Linear(128, self.n_class[0])
-        self.output_gender = nn.Linear(128, self.n_class[0])
-        self.output_race = nn.Linear(128, self.n_class[0])
+        self.output_gender = nn.Linear(128, self.n_class[1])
+        self.output_race = nn.Linear(128, self.n_class[2])
 
     def forward(self, x):
         x = self.conv_base(x)
@@ -178,7 +178,8 @@ class PretrainedMT(nn.Module):
 
     def __init__(self, model_name='resnet', feature_extract=True, use_pretrained=True):
         super(PretrainedMT, self).__init__()
-        self.conv_base, input_size = initialize_model(model_name, feature_extract, 'utk', use_pretrained)
+        self.conv_base, input_size = initialize_model(model_name, feature_extract, num_classes=None,
+                                                      task='utk', use_pretrained=use_pretrained)
         self.output_age = nn.Linear(128, 1)
         self.output_gender = nn.Linear(128, 2)
         self.output_race = nn.Linear(128, 5)
@@ -189,3 +190,4 @@ class PretrainedMT(nn.Module):
         gender = self.output_gender(x)
         race = self.output_race(x)
         return age, gender, race
+

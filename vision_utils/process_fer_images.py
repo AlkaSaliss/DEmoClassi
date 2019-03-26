@@ -1,6 +1,7 @@
 import argparse
 import pandas as pd
-from vision_utils.face_utils import align_and_crop, select_list_images, processing_time
+from vision_utils.face_utils import align_and_crop, select_list_images
+from vision_utils.custom_torch_utils import processing_time
 import warnings
 warnings.filterwarnings('ignore')
 

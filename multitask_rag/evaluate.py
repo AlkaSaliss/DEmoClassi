@@ -3,8 +3,10 @@ import torch
 import tqdm
 import numpy as np
 from vision_utils.custom_torch_utils import plot_confusion_matrix
+from vision_utils.custom_torch_utils import processing_time
 
 
+@processing_time
 def evaluate_model(model, dataloader,
                    title='Confusion matrix',
                    labels_=[[0, 1], [0, 1, 2, 3, 4]],

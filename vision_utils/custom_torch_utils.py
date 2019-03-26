@@ -11,6 +11,34 @@ import numpy as np
 from sklearn.metrics.classification import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import itertools
+import time
+
+
+def processing_time(func):
+    """
+    utility function to print execution time of a given function
+
+    :param func: a python function to track the execution time
+    :return:
+    """
+    def func_wrapper(*args, **kwargs):
+        start = time.time()
+        func(*args, **kwargs)
+        seconds = time.time() - start
+        m, s = divmod(seconds, 60)
+        h, m = divmod(m, 60)
+        print(f"The execution took {h} hours | {m} minutes | {s:.1f} seconds!")
+    return func_wrapper
+
+
+def count_parameters(model):
+    """
+    Utility function for counting number of trainable and non trainable parameters of a model
+    :param model: pytorch model
+    :return:
+    """
+    print(f"Number of trainable parameters : {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
+    print(f"Number of non-trainable parameters : {sum(p.numel() for p in model.parameters() if not p.requires_grad):,}")
 
 
 def set_parameter_requires_grad(model, feature_extracting):
@@ -431,4 +459,20 @@ def plot_confusion_matrix(y_true, y_pred, title='Confusion matrix', labels_=None
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel(f'Predicted label\naccuracy={accuracy:.4f}; misclass={misclass:.4f}')
+    plt.show()
+
+
+def plot_lr(list_lr, list_steps):
+    """
+    Utility function to track and plot learning rate
+    :param list_lr: list of learning rates tracked duriong training
+    :param list_steps: list of steps/iterations
+    :return:
+    """
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(list_steps, list_lr)
+    plt.title('Learning rate by training iterations')
+    plt.ylabel('learning rate')
+    plt.xlabel('Iterations')
     plt.show()

@@ -3,6 +3,7 @@ import os
 import torch
 import torch.nn.functional as F
 from vision_utils.custom_torch_utils import create_summary_writer
+from vision_utils.custom_torch_utils import processing_time, count_parameters, plot_lr
 from ignite.metrics import Loss, Accuracy
 from ignite.engine import create_supervised_evaluator, create_supervised_trainer
 from ignite.engine import Events
@@ -18,12 +19,13 @@ import numpy as np
 val_loss = [np.inf]
 
 
+@processing_time
 def run_fer(model, optimizer, epochs, log_interval, dataloaders,
             dirname='resnet_models', filename_prefix='resnet', n_saved=2,
             log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10,
             resume_model=None, resume_optimizer=None, backup_step=1, backup_path=None,
             n_epochs_freeze=5, n_cycle=None, lr_after_freeze=1e-3,
-            lr_cycle_start=1e-4, lr_cycle_end=1e-1):
+            lr_cycle_start=1e-4, lr_cycle_end=1e-1, lr_plot=True):
 
     """
     Utility function that encapsulates pytorch models training routine.
@@ -55,6 +57,8 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
     :param lr_cycle_end: end value for learning rate when doing learning rate scheduling
     :return:
     """
+
+    count_parameters(model)
 
     # create the tensorboard log directory if relevant
     if launch_tensorboard:
@@ -117,6 +121,8 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_training_results(engine):
         pbar.refresh()
+
+        # print metrics on training set
         evaluator.run(train_loader)
         metrics = evaluator.state.metrics
         avg_accuracy = metrics['accuracy']
@@ -125,14 +131,11 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
             "Training Results - Epoch: {}  Avg accuracy: {:.3f} Avg loss: {:.3f}"
             .format(engine.state.epoch, avg_accuracy, avg_nll)
         )
-
         if launch_tensorboard:
             writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
             writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
 
-    @trainer.on(Events.EPOCH_COMPLETED)
-    def log_validation_results(engine):
-
+        # print metrics on validation set
         evaluator.run(val_loader)
         metrics = evaluator.state.metrics
         avg_accuracy = metrics['accuracy']
@@ -140,26 +143,26 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
         tqdm.tqdm.write(
             "Validation Results - Epoch: {}  Avg accuracy: {:.3f} Avg loss: {:.3f}"
             .format(engine.state.epoch, avg_accuracy, avg_nll))
-
-        pbar.n = pbar.last_print_n = 0
-
         global val_loss
         val_loss.append(avg_nll)
-
         if launch_tensorboard:
             val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
             val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
+
+        pbar.n = pbar.last_print_n = 0
 
     # Utility function for unfreezing frozen layer for finetuning
     @trainer.on(Events.EPOCH_STARTED)
     def unfreeze(engine):
         if engine.state.epoch == n_epochs_freeze:
+            print('****Unfreezing frozen layers ... ***')
             for param in model.parameters():
                 if not param.requires_grad:
                     param.requires_grad = True
                     optimizer.add_param_group(
                         {'params': param, "lr": lr_after_freeze}
                     )
+            count_parameters(model)
 
     # Function that returns the negative validation loss, useful for saving the best checkpoint at each epoch
     def get_val_loss(_):
@@ -174,11 +177,12 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
                                             require_empty=False, save_as_state_dict=True
                                             )
     # callback to stop training if no improvement is observed
+    patience *= 2  # because the evaluator is called twice (on training set and validation set)
     earlystop = handlers.EarlyStopping(patience, get_val_loss, trainer)
 
     evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
                                 {'optimizer': optimizer, 'model': model})
-    evaluator.add_event_handler(Events.EPOCH_COMPLETED, earlystop)
+    evaluator.add_event_handler(Events.COMPLETED, earlystop)
 
     # optimizer and model that are in the backup_path, created from a previous run
     if backup_path is not None:
@@ -212,9 +216,19 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
                 for f_ in new_files:
                     shutil.copy2(f_, backup_path)
 
-    if launch_tensorboard:
-        @trainer.on(Events.EPOCH_COMPLETED)
-        def add_histograms(engine):
+    # plot learning rate
+    list_lr = [p['lr'] for i, p in enumerate(optimizer.param_groups) if i == 0]
+    list_steps = [0]
+
+    @trainer.on(Events.ITERATION_COMPLETED)
+    def track_learning_rate(engine):
+        if lr_plot is True:
+            list_steps.append(engine.state.iteration)
+            list_lr.extend([p['lr'] for i, p in enumerate(optimizer.param_groups) if i == 0])
+
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def add_histograms(engine):
+        if launch_tensorboard:
             for name, param in model.named_parameters():
                 writer.add_histogram(name, param.clone().cpu().data.numpy(), engine.state.epoch)
 
@@ -223,3 +237,6 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
     if launch_tensorboard:
         writer.close()
         val_writer.close()
+
+    if lr_plot:
+        plot_lr(list_lr, list_steps)

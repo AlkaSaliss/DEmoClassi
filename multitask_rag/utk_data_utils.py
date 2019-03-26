@@ -75,7 +75,8 @@ def split_utk(src_dir, dest_dir, train_split=0.7):
     val_path = os.path.join(dest_dir, 'valid')
     test_path = os.path.join(dest_dir, 'test')
 
-    list_images = glob.glob(os.path.join(src_dir, '*jp*'))
+    list_images = glob.glob(os.path.join(src_dir, '*.jp*'))
+    list_images = [im for im in list_images if len(im.split('/')[-1].split('_')) == 4]
     list_labels = [item.split('/')[-1].split('_') for item in list_images]
     # age = [item[0] for item in list_labels]
     gender = [item[1] for item in list_labels]

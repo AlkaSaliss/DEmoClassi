@@ -2,6 +2,8 @@
 from vision_utils.custom_torch_utils import create_summary_writer
 from vision_utils.custom_torch_utils import create_supervised_trainer_multitask, create_supervised_evaluator_multitask
 from vision_utils.custom_torch_utils import my_multi_task_loss, MutliTaskLoss, MultiTaskAccuracy
+from vision_utils.custom_torch_utils import processing_time, count_parameters
+from vision_utils.custom_torch_utils import plot_lr
 import tqdm
 from ignite.engine.engine import Events
 from ignite import handlers
@@ -17,12 +19,13 @@ import numpy as np
 val_loss = [np.inf]
 
 
+@processing_time
 def run_utk(model, optimizer, epochs, log_interval, dataloaders,
             dirname='resnet_models', filename_prefix='resnet', n_saved=2,
             log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10,
             resume_model=None, resume_optimizer=None, backup_step=1, backup_path=None,
             n_epochs_freeze=5, n_cycle=None, lr_after_freeze=1e-3, lr_cycle_start=1e-4,
-            lr_cycle_end=1e-1, loss_weights=[1/10, 1/0.16, 1/0.44]):
+            lr_cycle_end=1e-1, loss_weights=[1/10, 1/0.16, 1/0.44], lr_plot=True):
 
     """
     Utility function that encapsulates pytorch models training routine.
@@ -55,6 +58,8 @@ def run_utk(model, optimizer, epochs, log_interval, dataloaders,
     :param loss_weights: list of float to be used for weighting model's outputs
     :return:
     """
+
+    count_parameters(model)
 
     # create the tensorboard log directory if relevant
     if launch_tensorboard:
@@ -119,6 +124,7 @@ def run_utk(model, optimizer, epochs, log_interval, dataloaders,
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_training_results(engine):
         pbar.refresh()
+        # print metrics on training set
         evaluator.run(train_loader)
         metrics = evaluator.state.metrics
         age_l1_loss, gender_acc, race_acc = metrics['mt_accuracy']
@@ -128,15 +134,13 @@ def run_utk(model, optimizer, epochs, log_interval, dataloaders,
             "** Race accuracy: {:.3f} ** Avg loss: {:.3f}"
             .format(engine.state.epoch, age_l1_loss, gender_acc, race_acc, avg_nll)
         )
-
         if launch_tensorboard:
             writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
             writer.add_scalar('age_l1_loss', age_l1_loss, engine.state.epoch)
             writer.add_scalar('gender_accuracy', gender_acc, engine.state.epoch)
             writer.add_scalar('race_accuracy', race_acc, engine.state.epoch)
 
-    @trainer.on(Events.EPOCH_COMPLETED)
-    def log_validation_results(engine):
+        # print metrics on validation set
         evaluator.run(val_loader)
         metrics = evaluator.state.metrics
         age_l1_loss, gender_acc, race_acc = metrics['mt_accuracy']
@@ -145,28 +149,28 @@ def run_utk(model, optimizer, epochs, log_interval, dataloaders,
             "Validation Results - Epoch: {} Age L1-loss: {:.3f} ** Gender accuracy: {:.3f} **"
             " Race accuracy: {:.3f} ** Avg loss: {:.3f}"
             .format(engine.state.epoch, age_l1_loss, gender_acc, race_acc, avg_nll))
-
-        pbar.n = pbar.last_print_n = 0
-
         global val_loss
         val_loss.append(avg_nll)
-
         if launch_tensorboard:
             val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
             val_writer.add_scalar('age_l1_loss', age_l1_loss, engine.state.epoch)
             val_writer.add_scalar('gender_accuracy', gender_acc, engine.state.epoch)
             val_writer.add_scalar('race_accuracy', race_acc, engine.state.epoch)
 
+        pbar.n = pbar.last_print_n = 0
+
     # Utility function for unfreezing frozen layer for finetuning
     @trainer.on(Events.EPOCH_STARTED)
     def unfreeze(engine):
         if engine.state.epoch == n_epochs_freeze:
+            print('****Unfreezing frozen layers ... ***')
             for param in model.parameters():
                 if not param.requires_grad:
                     param.requires_grad = True
                     optimizer.add_param_group(
                         {'params': param, "lr": lr_after_freeze}
                     )
+            count_parameters(model)
 
     # Function that returns the negative validation loss, useful for saving the best checkpoint at each epoch
     def get_val_loss(_):
@@ -183,14 +187,16 @@ def run_utk(model, optimizer, epochs, log_interval, dataloaders,
                                             )
 
     # callback to stop training if no improvement is observed
+    patience *= 2  # because the evaluator is called twice (on training set and validation set)
     earlystop = handlers.EarlyStopping(patience, get_val_loss, trainer)
     #
     evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpointer,
                                 {'optimizer': optimizer, 'model': model})
-    evaluator.add_event_handler(Events.EPOCH_COMPLETED, earlystop)
+    evaluator.add_event_handler(Events.COMPLETED, earlystop)
 
     # optimizer and model that are in the backup_path, created from a previous run
-    original_files = glob.glob(os.path.join(backup_path, '*.pth*'))
+    if backup_path is not None:
+        original_files = glob.glob(os.path.join(backup_path, '*.pth*'))
 
     # utility function to periodically copy best model to `backup_path` folder
     @trainer.on(Events.EPOCH_COMPLETED)
@@ -219,9 +225,19 @@ def run_utk(model, optimizer, epochs, log_interval, dataloaders,
                 for f_ in new_files:
                     shutil.copy2(f_, backup_path)
 
-    if launch_tensorboard:
-        @trainer.on(Events.EPOCH_COMPLETED)
-        def add_histograms(engine):
+    # plot learning rate
+    list_lr = [p['lr'] for i, p in enumerate(optimizer.param_groups) if i == 0]
+    list_steps = [0]
+
+    @trainer.on(Events.ITERATION_COMPLETED)
+    def track_learning_rate(engine):
+        if lr_plot is True:
+            list_steps.append(engine.state.iteration)
+            list_lr.extend([p['lr'] for i, p in enumerate(optimizer.param_groups) if i == 0])
+
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def add_histograms(engine):
+        if launch_tensorboard:
             for name, param in model.named_parameters():
                 writer.add_histogram(name, param.clone().cpu().data.numpy(), engine.state.epoch)
 
@@ -230,3 +246,6 @@ def run_utk(model, optimizer, epochs, log_interval, dataloaders,
     if launch_tensorboard:
         writer.close()
         val_writer.close()
+
+    if lr_plot:
+        plot_lr(list_lr, list_steps)
