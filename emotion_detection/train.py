@@ -22,7 +22,7 @@ val_loss = [np.inf]
 @processing_time
 def run_fer(model, optimizer, epochs, log_interval, dataloaders,
             dirname='resnet_models', filename_prefix='resnet', n_saved=2,
-            log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10,
+            log_dir='../../fer2013/logs', launch_tensorboard=False, patience=10, val_monitor='loss',
             resume_model=None, resume_optimizer=None, backup_step=1, backup_path=None,
             n_epochs_freeze=5, n_cycle=None, lr_after_freeze=1e-3,
             lr_cycle_start=1e-4, lr_cycle_end=1e-1, lr_plot=True):
@@ -42,6 +42,8 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
     :param log_dir: optional path to a directory where to write tensorboard logs
     :param launch_tensorboard: boolean, whether to write metrics and histograms using tensorboard
     :param patience: int, number of epochs to wait for before stopping training if no improvement is recorded
+    :param val_monitor: string, set it to `acc` if using accuracy as metric for model checkpointing and early stopping,
+                        otherwise use `loss`
     :param resume_model: optional path to checkpoint of trained model to load weights from and continue training
     :param resume_optimizer: optional path to a previous optimizer checkpoint to load state_dict from
     :param backup_step: optional, copy the model checkpoints from `dirname` each `backup_step` epochs,
@@ -144,7 +146,8 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
             "Validation Results - Epoch: {}  Avg accuracy: {:.3f} Avg loss: {:.3f}"
             .format(engine.state.epoch, avg_accuracy, avg_nll))
         global val_loss
-        val_loss.append(avg_nll)
+        monitor_metric = avg_nll if val_monitor == 'loss' else avg_accuracy
+        val_loss.append(monitor_metric)
         if launch_tensorboard:
             val_writer.add_scalar('avg_loss', avg_nll, engine.state.epoch)
             val_writer.add_scalar('avg_accuracy', avg_accuracy, engine.state.epoch)
@@ -167,12 +170,13 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
     # Function that returns the negative validation loss, useful for saving the best checkpoint at each epoch
     def get_val_loss(_):
         global val_loss
-        return -val_loss[-1]
+        return -val_loss[-1] if val_monitor == 'loss' else val_loss[-1]
 
     # callback to save the best model during training
+    score_name = 'val_loss' if val_monitor == 'loss' else 'val_accuracy'
     checkpointer = handlers.ModelCheckpoint(dirname=dirname, filename_prefix=filename_prefix,
                                             score_function=get_val_loss,
-                                            score_name='val_loss',
+                                            score_name=score_name,
                                             n_saved=n_saved, create_dir=True,
                                             require_empty=False, save_as_state_dict=True
                                             )
