@@ -63,7 +63,7 @@ def run_fer(model, optimizer, epochs, log_interval, dataloaders,
     # The 1st value of the monitoring metric should be set to its worst value : inf for loss and 0 for accuracy
     if val_monitor != 'loss':
         global val_loss
-        val_loss = [0]
+        val_loss = [0.0]
 
     count_parameters(model)
 
