@@ -13,3 +13,12 @@ The Training is done using Pytorch and pytorch-ignite and more
 information about the data used, the training process and live prediction using 
 pretrained models and opencv can be found on 
 [this page](docs/pages.md).
+
+
+Some sample predictions : 
+
+![png](docs/samples/neutral_shot.png)
+![png](docs/samples/happy_shot.png)
+![png](docs/samples/angry_shot_new.png)
+![png](docs/samples/sad_sht1.png)
+![png](docs/samples/surprised_shot.png)

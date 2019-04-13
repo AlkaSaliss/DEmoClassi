@@ -7,22 +7,23 @@ from emotion_detection.evaluate import predict_fer
 from multitask_rag.evaluate import predict_utk
 import numpy as np
 import os
+import pathlib
 import argparse
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 rcParams.update({'figure.autolayout': True})
 
 
-# default path to a saved model for emotion prediction
+# default path to a saved model for race, age and gender prediction
 saved_weight_utk = '/media/sf_Documents/COMPUTER_VISION/DEmoClassi/' \
                    'multitask_rag/checkpoints/vgg_model_21_val_loss=4.139335.pth'
 
-# default path to a saved model for race, age and gender prediction
+# default path to a saved model for emotion prediction
 saved_weight_fer = '/media/sf_Documents/COMPUTER_VISION/DEmoClassi/' \
                    'emotion_detection/checkpoints/vgg_model_173_val_accuracy=0.6447478.pth'
 
 
-# paths to the caffe model files for detecting face using opencv
+# paths to the caffe model files for detecting faces using opencv
 package_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 path_binaries = os.path.join(package_path, 'cv2_dnn_model_files')
@@ -52,7 +53,7 @@ def plot_to_array(x, y, color):
     return data
 
 
-def predict_from_frame(net, frame, model_utk, model_fer, transfer_learn):
+def predict_from_frame(net, frame, model_utk, model_fer, transfer_learn, display_probs=False):
     """
     Makes emotion, gender, age and race prediction from a frame and plot the results in the frame to display
      using opencv
@@ -61,6 +62,7 @@ def predict_from_frame(net, frame, model_utk, model_fer, transfer_learn):
     :param model_utk: pytorch model for predicting race, age and gender
     :param model_fer: pytorch model for predicting emotion
     :param transfer_learn: whether we are using a pretrained model (`resnet` or `vgg`)
+    :param display_probs: True or False, whether to plot the predicted probabilities for each class
     :return:
     """
 
@@ -81,15 +83,19 @@ def predict_from_frame(net, frame, model_utk, model_fer, transfer_learn):
         if confidence > 0.5:
             box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
             (startX, startY, endX, endY) = box.astype("int")
-            cv2.rectangle(frame, (startX - 25, startY - 50), (endX + 25, endY + 25), (0, 255, 0), 3)
+            # cv2.rectangle(frame, (startX - 25, startY - 50), (endX + 25, endY + 25), (0, 255, 0), 3)
+            cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 255, 0), 3)
 
             # do age, gender and race prediction
+            # face = frame[startY-25: endY+25, startX-25: endX+25]
             face = frame[startY: endY, startX: endX]
             age, gender, gender_lab, race, race_lab = predict_utk(face, model_utk)
 
             # do emotion prediction
             try:
-                gray = cv2.cvtColor(frame[startY - 50: endY + 25, startX - 25: endX + 25],
+                # gray = cv2.cvtColor(frame[startY - 50: endY + 25, startX - 25: endX + 25],
+                #                     cv2.COLOR_BGR2GRAY)
+                gray = cv2.cvtColor(frame[startY-15: endY+15, startX-15: endX+15],
                                     cv2.COLOR_BGR2GRAY)
                 emotion_probs, emotion = predict_fer(gray, model_fer, transfer_learn)
 
@@ -99,19 +105,20 @@ def predict_from_frame(net, frame, model_utk, model_fer, transfer_learn):
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 cv2.putText(frame, text, (startX - 26, startY - 55), font, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
 
-                # plot the predicted probabilities as bar plots
-                emotion_labels, emotion_proba = dict_prob_to_list(emotion_probs)
-                gender_labels, gender_proba = dict_prob_to_list(gender)
-                race_labels, race_proba = dict_prob_to_list(race)
+                if display_probs:
+                    # plot the predicted probabilities as bar plots
+                    emotion_labels, emotion_proba = dict_prob_to_list(emotion_probs)
+                    gender_labels, gender_proba = dict_prob_to_list(gender)
+                    race_labels, race_proba = dict_prob_to_list(race)
 
-                emotion_plot = plot_to_array(emotion_labels, emotion_proba, 'g')
-                race_plot = plot_to_array(race_labels, race_proba, 'r')
-                gender_plot = plot_to_array(gender_labels, gender_proba, 'b')
+                    emotion_plot = plot_to_array(emotion_labels, emotion_proba, 'g')
+                    race_plot = plot_to_array(race_labels, race_proba, 'r')
+                    gender_plot = plot_to_array(gender_labels, gender_proba, 'b')
 
-                cv2.imshow('Emotion', emotion_plot)
-                cv2.imshow('Gender', gender_plot)
-                cv2.imshow('Race', race_plot)
-                plt.close('all')
+                    cv2.imshow('Emotion', emotion_plot)
+                    cv2.imshow('Gender', gender_plot)
+                    cv2.imshow('Race', race_plot)
+                    plt.close('all')
 
             except:
                 pass
@@ -133,6 +140,8 @@ parser.add_argument('--source', type=str, default='stream',
                          'from a video file or from an image')
 parser.add_argument('--file', type=str, default=None,
                     help='Path to an image or video file to make predictions from')
+parser.add_argument('--display_probs', type=str, default='true',
+                    help='true or false, whether to plot the predicted probabilities for each class')
 predict_args = parser.parse_args()
 
 
@@ -145,6 +154,7 @@ def main(args, net):
     source_file = args.file
     if from_source in ['image', 'video'] and source_file is None:
         raise ValueError('You must provide a path to an image/video in order to make predcitions from file')
+    display_probs = True if args.display_probs == 'true' else False
 
     # load emotion detection model
     if type_emotion_model in ['resnet', 'vgg']:
@@ -167,10 +177,11 @@ def main(args, net):
     # make prediction from an input image
     if from_source == 'image':
         frame = cv2.imread(source_file)
-        print("****************", frame.shape)
-        frame = predict_from_frame(net, frame, model_utk, model_fer, transfer_learn)
+        frame = predict_from_frame(net, frame, model_utk, model_fer, transfer_learn, display_probs)
+        parent, f_name = str(pathlib.Path(source_file).parent), pathlib.Path(source_file).name
+        cv2.imwrite(os.path.join(parent, f_name+'predicted.jpg'), frame)
         cv2.imshow('Face Detector', frame)
-        key = cv2.waitKey(1) & 0xFF
+        key = cv2.waitKey(0) & 0xFF
         if key == ord("q"):
             cv2.destroyAllWindows()
 
@@ -183,7 +194,7 @@ def main(args, net):
 
         while vs.isOpened():
             ret, frame = vs.read()
-            frame = predict_from_frame(net, frame, model_utk, model_fer, transfer_learn)
+            frame = predict_from_frame(net, frame, model_utk, model_fer, transfer_learn, display_probs)
             cv2.imshow('Face Detector', frame)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
