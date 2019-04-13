@@ -12,4 +12,4 @@ installable via `pip install --upgrade democlassi`.
 The Training is done using Pytorch and pytorch-ignite and more 
 information about the data used, the training process and live prediction using 
 pretrained models and opencv can be found on 
-[this page]([my_page](./docs/pages.md)).
+[this page]([my_page](docs/pages.md)).
