@@ -12,4 +12,4 @@ installable via `pip install --upgrade democlassi`.
 The Training is done using Pytorch and pytorch-ignite and more 
 information about the data used, the training process and live prediction using 
 pretrained models and opencv can be found on 
-[this github page](https://alkasaliss.github.io/DEmoClassi/).
+[this page]([my_page](./docs/pages.md)).
