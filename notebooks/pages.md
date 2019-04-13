@@ -844,6 +844,50 @@ That's it for the evaluation of the emotion detection task. We can see that the 
 65% of accuracy.
 For the evaluation of the second task, check [this notebook](blabla.com).
 
+## 5. Real time prediction using opencv
+
+Once we have trained and select the best model from evaluation on test set, we can test its performance 
+in real time using opencv to and our webcam to capture images in streaming fashion. However this is done locally
+as I didn't find a way doing streaming images processing with opencv on Google colab.
+Install opencv with `pip install opencv-python` from your terminal
+
+The pretrained models can be downloaded from google drive : 
+* Emotion detection :
+    * Separable conv : [link](https://drive.google.com/open?id=11C3pn8yV3hb-5rOjCt3a3gTCeFMwbWwd)
+    * Resnet : [link](https://drive.google.com/open?id=1ENC6syjMOpHpoiI2Wc-jtnm6b23U5rq_)
+    * VGG : [link](https://drive.google.com/open?id=1-hGG7z8F6Icke99UcpJoQ7bi5dJXfJrh)
+* Age, gender and race prediction :
+    * Separable conv : [link](https://drive.google.com/open?id=1-ffXI1cv58FhQGSNvfnFjn2yWEM5cbNb)
+    * Resnet : [link](https://drive.google.com/open?id=10fBVtITB4AnC3tMdPFtQizwvy4-zpCyb)
+    * VGG : [link](https://drive.google.com/open?id=112NrbcPgpXzVqJML4-zTZmRuOTTGXdiE)
+
+
+Let's say for instance we want to use the VGG model for emotion detection, and resnet model for age-gender-race 
+prediction, we can execute deploy them using the following command :
+
+```bash
+python -m vision_utils.cv2_deploy \
+        --emotion_model_weight path_to_my_emotion_model \
+        --demogr_model_weight path_to_age_gender_race_prediction_model \
+        --type_emotion_model vgg \
+        --type_demog_model resnet \
+        --source stream
+```
+
+`path_to_my_emotion_model` and `path_to_age_gender_race_prediction_model` should be replace with the path to the pretrained 
+models resp.
+The command should load the models and start the webcam for live prediction.
+ **Note** : the loading could take few seconds depending on the machine's capacity and the model chosen, e.g. the VGG 
+ model's weight are quite big in terms of size so it may be slower than using the separable conv model.
+
+For more information on the possible arguments for teh detection using opencv you can use the help option to print 
+all arguments :
+```bash
+python -m vision_utils.cv2_deploy -h
+``` 
+
+
+## Final words
 That's it for this project. So where to go from here ?
 * Test other architectures : densenet, inception, ...
 * Test with various different optimizers, regularization techniques, learing rates ...
@@ -851,5 +895,7 @@ That's it for this project. So where to go from here ?
 
 This the first deeplearning project I carried out end-to-end, so I'll be happy to welcome all your suggestions regarding 
 what I could have done better.
+
+
 
 Project [Github link](https://github.com/AlkaSaliss/DEmoClassi)
