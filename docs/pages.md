@@ -669,7 +669,7 @@ The training procedure for the second task (age, gender and race prediction) is 
 * prepare the data and apply eventually some transformations
 * create models (separable conv, or pretrained vg, resnet ...)
 * and train 
-Check [this notebook](www.blabla.com) for the entire training process for the second task.
+Check [this notebook](https://github.com/AlkaSaliss/DEmoClassi/blob/master/notebooks/experiments_and_evaluation_utk_latest.ipynb) for the entire training process for the second task.
 
 ## 4. Evaluation
 Now that we have some trained models, we can assess their performance on the test which wasn't used neither for training 
