@@ -7,6 +7,9 @@ from PIL import Image
 from sklearn.model_selection import train_test_split
 from shutil import copy2
 import tqdm
+import matplotlib.pyplot as plt
+import random
+import numpy as np
 
 
 class RagDataset(Dataset):
@@ -128,3 +131,35 @@ def get_utk_dataloader(batch_size=256, data_dir=None, n_samples=None, data_trans
     dataloaders = DataLoader(image_dataset, batch_size=batch_size, num_workers=8, shuffle=shuffle)
 
     return dataloaders
+
+
+def display_examples_utk(root_path, label_type, label_value):
+
+    list_files = [item for item in glob.glob(os.path.join(root_path, '*.jpg'))
+                  if len(item.split('/')[-1].split('_')[:-1]) == 3]
+
+    labels = [item.split('/')[-1].split('_')[:-1] for item in list_files]
+
+    labels = {
+        'age': [int(item[0]) for item in labels],
+        'gender': [int(item[1]) for item in labels],
+        'race': [int(item[2]) for item in labels]
+    }
+
+    label_names = {
+        "race": {0: 'White', 1: 'Black', 2: 'Asian', 3: 'Indian', 4: 'Other'},
+        "gender": {0: 'Male', 1: 'Female'},
+    }
+
+    print('Sample images for {} : {}'.format(
+        label_type, label_names[label_type][label_value] if label_type != 'age' else label_value
+    ))
+    inds = [ind for ind, lab in enumerate(labels[label_type]) if lab == label_value]
+
+    samples = random.sample(inds, k=4)
+
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10, 5))
+    ax = ax.ravel()
+    for idx, im_ind in enumerate(samples):
+        im = np.asarray(Image.open(list_files[im_ind]))
+        ax[idx].imshow(im)

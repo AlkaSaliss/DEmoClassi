@@ -5,7 +5,10 @@ from torchvision import datasets
 import os
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import warnings
+from skimage.transform import resize as sk_resize
+from skimage import exposure
 warnings.filterwarnings('ignore', category=UserWarning)
 
 
@@ -85,3 +88,60 @@ def get_fer_dataloader(batch_size=256, data_dir='./fer2013.csv', flag='Training'
     shuffle = True if flag == 'Train' else False
     dataloader = DataLoader(image_dataset, batch_size=batch_size, num_workers=8, shuffle=shuffle)
     return dataloader
+
+
+# Utility classes for applying custom transformations to images
+class AddChannel(object):
+    def __call__(self, im):
+        return np.expand_dims(im, 2)
+
+
+class HistEq(object):
+    def __call__(self, im):
+        return exposure.equalize_hist(im)
+
+
+class ToRGB(object):
+    def __call__(self, im):
+        if len(im.shape) < 3:
+            im = np.expand_dims(im, 2)
+        return np.repeat(im, 3, axis=2)
+
+
+class SkResize(object):
+    def __init__(self, size):
+        self.size = size
+
+    def __call__(self, im, size=None):
+        return sk_resize(im, self.size)
+
+
+def display_examples_fer(df, label):
+    """
+    Utility function for displaying some sample images for a given label
+    :param label: integer from 0 to 6
+    :return:
+    """
+    dict_label = {
+        0: 'Angry',
+        1: 'Disgust',
+        2: 'Fear',
+        3: 'Happy',
+        4: 'Sad',
+        5: 'Surprise',
+        6: 'Neutral'
+    }
+    print('Sample images for class :', dict_label[label])
+
+    def pixels_to_array(pix):
+        return np.array([
+            int(i) for i in pix.split(' ')
+        ]).reshape((48, 48))
+
+    # get indices where the given label is located
+    images = df.query("Usage=='Training' & emotion=={}".format(label)).sample(4)['pixels'].values
+
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10, 5))
+    ax = ax.ravel()
+    for idx, im in enumerate(images):
+        ax[idx].imshow(pixels_to_array(im), cmap='gray')

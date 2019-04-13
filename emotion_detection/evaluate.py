@@ -1,9 +1,12 @@
 # Import
 import torch
+from torchvision import transforms
+import torch.nn.functional as F
 import tqdm
 import numpy as np
 from vision_utils.custom_torch_utils import plot_confusion_matrix
-from vision_utils.custom_torch_utils import  processing_time
+from vision_utils.custom_torch_utils import processing_time
+from emotion_detection.fer_data_utils import SkResize, HistEq, AddChannel, ToRGB
 
 
 @processing_time
@@ -46,3 +49,42 @@ def evaluate_model(model, dataloader,
 
     # print classification report  and confusion matrix
     plot_confusion_matrix(y_true, y_pred, title, labels_, target_names, normalize)
+
+
+def preprocess_fer(image, transf_learn):
+    if transf_learn:
+        transf = transforms.Compose([
+            SkResize((48, 48)),
+            HistEq(),
+            ToRGB(),
+            transforms.ToTensor()
+        ])
+    else:
+        transf = transforms.Compose([
+            HistEq(),
+            AddChannel(),
+            transforms.ToTensor()
+        ])
+
+    return transf(image).to(torch.float32).unsqueeze_(0)
+
+
+def predict_fer(image, model, transf_learn=True):
+
+    # process image
+    image = preprocess_fer(image, transf_learn)
+
+    # prepare model
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model.eval()
+    model = model.to(device)
+    image = image.to(device)
+
+    # predict probabilities
+    emotion = F.softmax(model(image), dim=1).detach().to('cpu').numpy()[0]
+    target_names = ['Angry', 'Disgusted', 'Afraid', 'Happy', 'Sad', 'Surprised', 'Neutral']
+    pred_label = target_names[np.argmax(emotion)]
+
+    emotion_probs = dict(zip(target_names, emotion))
+
+    return emotion_probs, pred_label
