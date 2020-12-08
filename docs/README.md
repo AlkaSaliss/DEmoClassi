@@ -853,9 +853,9 @@ Install opencv with `pip install opencv-python` from your terminal
 
 The pretrained models can be downloaded from google drive : 
 * Emotion detection :
-    * Separable conv : [link](https://drive.google.com/open?id=11C3pn8yV3hb-5rOjCt3a3gTCeFMwbWwd)
-    * Resnet : [link](https://drive.google.com/open?id=1ENC6syjMOpHpoiI2Wc-jtnm6b23U5rq_)
-    * VGG : [link](https://drive.google.com/open?id=1-hGG7z8F6Icke99UcpJoQ7bi5dJXfJrh)
+    * Separable conv : [link](https://drive.google.com/file/d/19BqF-dvot2cn_PwsMYxs6qiw81saZsD8/view?usp=sharing)
+    * Resnet : [link](https://drive.google.com/file/d/187zX3-ZRQPJIsNP-8RQCfh2rK5PeQUS3/view?usp=sharing)
+    * VGG : [link](https://drive.google.com/file/d/1Dpo5lQlSlWcGI-Fw9praIih8qJ_rjiO0/view?usp=sharing)
 * Age, gender and race prediction :
     * Separable conv : [link](https://drive.google.com/open?id=1-ffXI1cv58FhQGSNvfnFjn2yWEM5cbNb)
     * Resnet : [link](https://drive.google.com/open?id=10fBVtITB4AnC3tMdPFtQizwvy4-zpCyb)
