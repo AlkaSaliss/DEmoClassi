@@ -8,7 +8,7 @@ from ignite.metrics.metric import Metric
 from ignite.exceptions import NotComputableError
 import os
 import numpy as np
-from sklearn.metrics.classification import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import itertools
 import time
