@@ -17,7 +17,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='democlassi',
-    version='0.5.0',
+    version='0.5.1',
     author='A. Alka M. Salissou',
     author_email='alkasalissou@hotmail.com',
     packages=setuptools.find_packages(exclude=['legacy']),
